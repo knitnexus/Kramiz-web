@@ -837,5 +837,22 @@ export const api = {
             }, { onConflict: 'user_id, subscription_json' });
 
         if (error) throw new Error('Failed to save push subscription: ' + error.message);
+    },
+
+    saveNativePushToken: async (userId: string, token: string) => {
+        const { error } = await supabase
+            .from('native_push_tokens')
+            .upsert({
+                user_id: userId,
+                token: token,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'user_id, token' });
+
+        if (error) {
+            console.error('[Supabase] Failed to save native push token:', error.message);
+            // We don't throw here to avoid crashing the app if the table doesn't exist yet
+        } else {
+            console.log('[Supabase] Native push token saved successfully');
+        }
     }
 };

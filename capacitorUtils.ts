@@ -500,7 +500,9 @@ export const setupNetworkListener = (
 /**
  * Initialize all native plugins. Call this once in your app entry point.
  */
-export const initializeNativePlugins = async (): Promise<void> => {
+export const initializeNativePlugins = async (
+    onTokenReceived?: (token: string) => void
+): Promise<void> => {
     if (!isNative) {
         console.log('[Capacitor] Running on web — native plugins skipped');
         return;
@@ -510,6 +512,14 @@ export const initializeNativePlugins = async (): Promise<void> => {
 
     // Configure status bar
     await configureStatusBar('#008069', 'dark');
+
+    // Register token listener before registering
+    if (onTokenReceived) {
+        PushNotifications.addListener('registration', (token) => {
+            console.log('[Capacitor] Push token received:', token.value);
+            onTokenReceived(token.value);
+        });
+    }
 
     // Request notification permissions and register for push (if not already done)
     try {

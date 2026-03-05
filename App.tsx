@@ -233,10 +233,24 @@ const App: React.FC = () => {
         const initApp = async () => {
             try {
                 // Initialize native plugins (Permissions, Status Bar, etc.)
-                await initializeNativePlugins();
+                await initializeNativePlugins((token) => {
+                    localStorage.setItem('native_push_token', token);
+                    // If user is already loaded, save it now
+                    const savedUser = loadSession();
+                    if (savedUser) {
+                        api.saveNativePushToken(savedUser.id, token);
+                    }
+                });
 
                 const savedUser = loadSession();
-                if (savedUser) setUser(savedUser);
+                if (savedUser) {
+                    setUser(savedUser);
+                    // If we already have a token, save it
+                    const token = localStorage.getItem('native_push_token');
+                    if (token) {
+                        api.saveNativePushToken(savedUser.id, token);
+                    }
+                }
             } catch (err) {
                 console.error("Session restoration failed:", err);
                 clearSession();
@@ -250,6 +264,12 @@ const App: React.FC = () => {
     const handleLogin = (loggedInUser: User, rememberMe: boolean) => {
         saveSession(loggedInUser, rememberMe);
         setUser(loggedInUser);
+
+        // Save native token on login
+        const token = localStorage.getItem('native_push_token');
+        if (token) {
+            api.saveNativePushToken(loggedInUser.id, token);
+        }
     };
 
     const handleLogout = () => {

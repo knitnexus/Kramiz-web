@@ -37,6 +37,8 @@ ios/App/Pods/
 ios/App/App.xcworkspace/
 ios/App/build/
 
-# Firebase config (contains sensitive keys — add to repo manually if needed)
-# android/app/google-services.json
-# ios/App/App/GoogleService-Info.plist
+# Firebase config (prevent sensitive keys from being uploaded)
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
+*.jks
+*.keystore
