@@ -3,8 +3,17 @@ import { supabase, supabaseAdmin } from './supabaseClient';
 import {
     Company, User, PurchaseOrder, Channel, Message,
     AttachedFile, UserRole, ChannelMember, POMember,
-    hasPermission, ChannelType
+    hasPermission, ChannelType, Partnership
 } from './types';
+
+// Feature-specific API modules — add new features here as separate files
+import * as partnershipApi     from './api/partnerships';
+import * as companyApi         from './api/companies';
+import * as contactsApi        from './api/contacts';
+import * as deliveryChallanApi from './api/deliveryChallans';
+import * as inwardChallanApi   from './api/inwardChallans';
+import * as invoiceApi         from './api/invoices';
+import * as quotationApi       from './api/quotations';
 
 // ============================================
 // AUTHENTICATION
@@ -72,60 +81,86 @@ export const api = {
         return { user: user as User, company: company as Company };
     },
 
-    signup: async (companyName: string, companyType: 'MANUFACTURER' | 'VENDOR', name: string, phone: string, passcode: string) => {
-        // Validate phone number format (must be exactly 10 digits)
-        if (!/^\d{10}$/.test(phone)) {
-            throw new Error('Phone number must be exactly 10 digits');
-        }
+    signup: async (params: {
+        companyName: string;
+        gstNumber?: string;
+        address?: string;
+        state?: string;
+        pincode?: string;
+        adminName: string;
+        phone: string;
+        passcode: string;
+    }) => {
+        const { companyName, gstNumber, address, state, pincode, adminName, phone, passcode } = params;
 
-        // Validate passcode format (must be exactly 4 digits)
-        if (!/^\d{4}$/.test(passcode)) {
-            throw new Error('Passcode must be exactly 4 digits');
-        }
+        if (!/^\d{10}$/.test(phone)) throw new Error('Phone number must be exactly 10 digits');
+        if (!/^\d{4}$/.test(passcode))  throw new Error('Passcode must be exactly 4 digits');
+        if (pincode && !/^\d{6}$/.test(pincode)) throw new Error('PIN code must be 6 digits');
 
-        // Check if phone number already exists
+        // Block duplicate phone numbers
         const { data: existingUser } = await supabaseAdmin
-            .from('users')
-            .select('id')
-            .eq('phone', phone)
-            .single();
+            .from('users').select('id').eq('phone', phone).single();
+        if (existingUser) throw new Error('This phone number is already registered');
 
-        if (existingUser) {
-            throw new Error('Phone number already registered');
+        // Block duplicate GST (in case they bypassed the Step 1 check)
+        if (gstNumber) {
+            const { data: existingCompany } = await supabaseAdmin
+                .from('companies').select('id').eq('gst_number', gstNumber).single();
+            if (existingCompany) throw new Error('This GST number is already registered on Kramiz');
         }
 
-        // Create new company
+        // Generate a unique Kramiz ID like KRMZ-8A2F9
+        const kramizId = 'KRMZ-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+
+        // Create the company
         const { data: newCompany, error: companyError } = await supabaseAdmin
             .from('companies')
             .insert({
-                name: companyName,
-                type: companyType
+                name:       companyName.trim(),
+                kramiz_id:  kramizId,
+                gst_number: gstNumber || null,
+                address:    address?.trim()  || null,
+                state:      state?.trim()    || null,
+                pincode:    pincode?.trim()  || null,
             })
             .select()
             .single();
 
-        if (companyError) {
-            throw new Error('Failed to create company: ' + companyError.message);
-        }
+        if (companyError) throw new Error('Failed to create company: ' + companyError.message);
 
-        // Create admin user for the company
+        // Create the admin user
         const { data: newUser, error: userError } = await supabaseAdmin
             .from('users')
             .insert({
                 company_id: newCompany.id,
-                name: name,
-                phone: phone,
-                passcode: passcode,
-                role: 'ADMIN'
+                name:       adminName.trim(),
+                phone,
+                passcode,
+                role: 'ADMIN',
             })
             .select()
             .single();
 
-        if (userError) {
-            throw new Error('Failed to create user: ' + userError.message);
+        if (userError) throw new Error('Failed to create user: ' + userError.message);
+
+        // ── Contacts Sync ────────────────────────────────────────────────────
+        // If any company had this GST in their contacts book, link + update them
+        // so their records reflect the verified details Company B just confirmed.
+        if (gstNumber) {
+            await supabaseAdmin
+                .from('contacts')
+                .update({
+                    linked_company_id: newCompany.id,
+                    name:    companyName.trim(),
+                    address: address?.trim()  || null,
+                    state:   state?.trim()    || null,
+                    pincode: pincode?.trim()  || null,
+                })
+                .eq('gst_number', gstNumber)
+                .is('linked_company_id', null); // only unlinked contacts — no-op if none
         }
 
-        return { user: newUser as User, company: newCompany as Company };
+        return { user: newUser as User, company: newCompany as Company, kramizId };
     },
 
     // ============================================
@@ -135,9 +170,11 @@ export const api = {
     getPOs: async (currentUser: User) => {
         if (!currentUser) throw new Error('User not authenticated');
 
-        const userCompany = await api.getCompany(currentUser.company_id);
+        // ── Visibility rule ───────────────────────────────────────────────────────
+        // ADMIN → sees ALL orders for their company (no channel join needed)
+        // Everyone else → sees only orders where they are a channel member
 
-        if (userCompany?.type === 'MANUFACTURER') {
+        if (currentUser.role === 'ADMIN') {
             const { data, error } = await supabase
                 .from('purchase_orders')
                 .select('*')
@@ -146,26 +183,35 @@ export const api = {
 
             if (error) throw new Error(error.message);
             return data as PurchaseOrder[];
-        } else {
-            const { data: channels, error: channelError } = await supabase
-                .from('channels')
-                .select('po_id')
-                .eq('vendor_id', currentUser.company_id);
-
-            if (channelError) throw new Error(channelError.message);
-
-            const poIds = [...new Set(channels.map(ch => ch.po_id))];
-            if (poIds.length === 0) return [];
-
-            const { data, error } = await supabase
-                .from('purchase_orders')
-                .select('*')
-                .in('id', poIds)
-                .order('created_at', { ascending: false });
-
-            if (error) throw new Error(error.message);
-            return data as PurchaseOrder[];
         }
+
+        // Non-admin: membership-based visibility
+        const { data: memberChannels, error: memberError } = await supabase
+            .from('channel_members')
+            .select('channel_id')
+            .eq('user_id', currentUser.id);
+
+        if (memberError) throw new Error(memberError.message);
+
+        const channelIds = (memberChannels || []).map(m => m.channel_id);
+        if (channelIds.length === 0) return [];
+
+        const { data: channels } = await supabase
+            .from('channels')
+            .select('po_id')
+            .in('id', channelIds);
+
+        const poIds = [...new Set((channels || []).map(ch => ch.po_id))];
+        if (poIds.length === 0) return [];
+
+        const { data, error } = await supabase
+            .from('purchase_orders')
+            .select('*')
+            .in('id', poIds)
+            .order('created_at', { ascending: false });
+
+        if (error) throw new Error(error.message);
+        return data as PurchaseOrder[];
     },
 
     createPO: async (currentUser: User, orderNumber: string, styleNumber: string, teamMemberIds: string[]) => {
@@ -282,9 +328,7 @@ export const api = {
     // ============================================
 
     getChannels: async (currentUser: User, poId: string) => {
-        const userCompany = await api.getCompany(currentUser.company_id);
-
-        let query = supabase
+        const { data, error } = await supabase
             .from('channels')
             .select(`
                 *,
@@ -294,12 +338,6 @@ export const api = {
             `)
             .eq('po_id', poId)
             .eq('channel_members.user_id', currentUser.id);
-
-        if (userCompany?.type === 'VENDOR') {
-            query = query.eq('vendor_id', currentUser.company_id);
-        }
-
-        const { data, error } = await query.order('created_at', { ascending: true });
 
         if (error) throw new Error(error.message);
 
@@ -340,7 +378,7 @@ export const api = {
         })) as Channel[];
     },
 
-    createChannel: async (currentUser: User, poId: string, name: string, vendorId: string, channelType: ChannelType = 'VENDOR') => {
+    createChannel: async (currentUser: User, poId: string, name: string, partnerCompanyId: string, channelType: ChannelType = 'VENDOR') => {
         if (!hasPermission(currentUser.role, 'CREATE_CHANNEL')) {
             throw new Error('You do not have permission to create channels');
         }
@@ -352,31 +390,48 @@ export const api = {
                 name: name,
                 type: channelType,
                 status: 'PENDING',
-                vendor_id: vendorId || null
+                vendor_id: partnerCompanyId || null
             })
             .select()
             .single();
 
         if (error) throw new Error('Failed to create channel: ' + error.message);
 
+        // ── Auto-membership rules ────────────────────────────────────────────
+        // 1. All ADMINs of the current company
         const { data: admins } = await supabase
             .from('users')
             .select('id')
             .eq('company_id', currentUser.company_id)
             .eq('role', 'ADMIN');
 
-        let allMemberIds = (admins || []).map(a => a.id);
-        allMemberIds.push(currentUser.id);
+        // 2. The PO creator (Merchandiser who owns this order) — always included
+        //    even if someone else (Manager etc.) is creating this channel
+        const { data: poData } = await supabase
+            .from('purchase_orders')
+            .select('created_by')
+            .eq('id', poId)
+            .single();
 
-        if (vendorId) {
-            const { data: vendorAdmins } = await supabaseAdmin
+        const poCreatorId = poData?.created_by as string | undefined;
+
+        // 3. The user who is creating this channel
+        let allMemberIds: string[] = [
+            ...(admins || []).map(a => a.id),
+            currentUser.id,
+            ...(poCreatorId ? [poCreatorId] : []),
+        ];
+
+        // 4. Also auto-add ADMINs from the partner company (if this is a vendor channel)
+        if (partnerCompanyId) {
+            const { data: partnerAdmins } = await supabaseAdmin
                 .from('users')
                 .select('id')
-                .eq('company_id', vendorId)
+                .eq('company_id', partnerCompanyId)
                 .eq('role', 'ADMIN');
 
-            if (vendorAdmins && vendorAdmins.length > 0) {
-                allMemberIds = [...allMemberIds, ...vendorAdmins.map(a => a.id)];
+            if (partnerAdmins && partnerAdmins.length > 0) {
+                allMemberIds = [...allMemberIds, ...partnerAdmins.map(a => a.id)];
             }
         }
 
@@ -384,8 +439,8 @@ export const api = {
         if (uniqueMemberIds.length > 0) {
             const channelMembers = uniqueMemberIds.map(userId => ({
                 channel_id: newChannel.id,
-                user_id: userId,
-                added_by: currentUser.id
+                user_id:    userId,
+                added_by:   currentUser.id
             }));
 
             await supabase.from('channel_members').insert(channelMembers);
@@ -776,56 +831,9 @@ export const api = {
         });
     },
 
-    getPartners: async (currentUser: User) => {
-        const userCompany = await api.getCompany(currentUser.company_id);
-        if (!userCompany) return [];
-        if (userCompany.type === 'MANUFACTURER') {
-            const { data: channels } = await supabase.from('channels').select('vendor_id, channel_members!inner(user_id)').eq('channel_members.user_id', currentUser.id).not('vendor_id', 'is', null);
-            const vendorIds = [...new Set((channels || []).map(ch => ch.vendor_id).filter(Boolean))];
-            if (vendorIds.length === 0) return [];
-            const { data } = await supabase.from('companies').select('*').in('id', vendorIds);
-            return (data || []) as Company[];
-        } else {
-            const { data: channels } = await supabase.from('channels').select('po_id, channel_members!inner(user_id)').eq('channel_members.user_id', currentUser.id);
-            const poIds = [...new Set((channels || []).map(ch => ch.po_id))];
-            if (poIds.length === 0) return [];
-            const { data: pos } = await supabase.from('purchase_orders').select('manufacturer_id').in('id', poIds);
-            const mfgIds = [...new Set((pos || []).map(po => po.manufacturer_id))];
-            if (mfgIds.length === 0) return [];
-            const { data } = await supabase.from('companies').select('*').in('id', mfgIds);
-            return (data || []) as Company[];
-        }
-    },
-
-    getCompany: async (id: string) => {
-        const { data } = await supabase.from('companies').select('*').eq('id', id).single();
-        return (data || null) as Company | null;
-    },
-
     getUser: async (id: string) => {
         const { data } = await supabase.from('users').select('*').eq('id', id).single();
         return (data || null) as User | null;
-    },
-
-    updateCompanyName: async (companyId: string, newName: string) => {
-        const { error } = await supabase
-            .from('companies')
-            .update({ name: newName })
-            .eq('id', companyId);
-
-        if (error) throw new Error('Failed to update company name: ' + error.message);
-    },
-
-    deleteOrganization: async (currentUser: User, companyId: string) => {
-        if (currentUser.role !== 'ADMIN') throw new Error('Only admins can delete organization');
-        if (currentUser.company_id !== companyId) throw new Error('Unauthorized');
-
-        const { error } = await supabaseAdmin
-            .from('companies')
-            .delete()
-            .eq('id', companyId);
-
-        if (error) throw new Error('Failed to delete organization: ' + error.message);
     },
 
     savePushSubscription: async (userId: string, subscription: PushSubscription) => {
@@ -853,5 +861,18 @@ export const api = {
         } else {
             console.log('[Supabase] Push token saved successfully');
         }
-    }
+    },
+
+    // ================================================================
+    // FEATURE MODULES
+    // Add all new Phase features as separate files in client/api/
+    // Then import and spread them here — callers use api.xxx() as usual
+    // ================================================================
+    ...companyApi,         // → client/api/companies.ts
+    ...partnershipApi,     // → client/api/partnerships.ts
+    ...contactsApi,        // → client/api/contacts.ts         (Phase 2.5)
+    ...deliveryChallanApi, // → client/api/deliveryChallans.ts (Phase 3)
+    ...inwardChallanApi,   // → client/api/inwardChallans.ts   (Phase 3)
+    ...invoiceApi,         // → client/api/invoices.ts          (Phase 3)
+    ...quotationApi,       // → client/api/quotations.ts        (Phase 3)
 };

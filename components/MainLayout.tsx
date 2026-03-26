@@ -14,6 +14,7 @@ interface MainLayoutProps {
     setDeferredPrompt: (p: any) => void;
     setRunTour: (b: boolean) => void;
     runTour: boolean;
+    isSettings?: boolean;
     children: React.ReactNode;
 }
 
@@ -24,6 +25,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     setDeferredPrompt,
     setRunTour,
     runTour,
+    isSettings,
     children
 }) => {
     const navigate = useNavigate();
@@ -58,8 +60,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
     return (
         <div className="flex h-screen overflow-hidden bg-[#f0f2f5]">
-            {/* Sidebar Area: Visible on mobile if no groupId in URL, always visible on Desktop */}
-            <div className={`${groupId ? 'hidden md:block' : 'w-full'} md:w-auto h-full`}>
+            {/* Sidebar Area: Visible on mobile if no groupId/settings in URL, always visible on Desktop */}
+            <div className={`${(groupId || isSettings) ? 'hidden md:block' : 'w-full'} md:w-auto h-full`}>
                 <Sidebar
                     currentUser={user}
                     selectedGroupId={groupId}
