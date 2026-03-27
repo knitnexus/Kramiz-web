@@ -26,6 +26,7 @@ const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [showInstallPopup, setShowInstallPopup] = useState(false);
     const [runTour, setRunTour] = useState(false);
+    const [pendingShare, setPendingShare] = useState<any>(null);
 
     // Fetch data for the layout (needed for notifications and tour)
     const { data: allChannels = [] } = useQuery({
@@ -77,13 +78,13 @@ const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user
         const checkIncomingShare = async () => {
             try {
                 const result = await SendIntent.checkSendIntentReceived();
-                if (result && (result.title || result.url || result.description)) {
-                    // For now, securely catch the share and notify the user until UI is fully built
-                    let description = result.description || 'a message';
-                    if (result.type?.includes('image')) description = 'an image';
-                    if (result.url) description = 'a file';
-                    
-                    alert(`Kramiz received ${description} from another app! You can share this to a chat soon.`);
+                if (result && (result.title || result.url || result.description || result.type)) {
+                    // Normalize the shared data
+                    setPendingShare({
+                        type: result.type || 'text/plain',
+                        content: result.description || result.title || '',
+                        url: result.url || null
+                    });
                 }
             } catch (err) { }
         };
@@ -222,6 +223,66 @@ const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user
                     localStorage.setItem('kramiz_onboarded', 'true');
                 }}
             />
+
+            {/* Inward Share Modal */}
+            {pendingShare && (
+                <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-slate-50">
+                            <div className="flex flex-col text-left">
+                                <span className="text-[10px] font-black text-[#008069] uppercase tracking-widest">Share to Kramiz</span>
+                                <h3 className="font-bold text-gray-900">Select a Group</h3>
+                            </div>
+                            <button onClick={() => setPendingShare(null)} className="p-2 text-gray-400 hover:text-gray-600 bg-white rounded-full shadow-sm">✕</button>
+                        </div>
+                        
+                        <div className="p-4 max-h-[70vh] overflow-y-auto space-y-3">
+                            {/* Preview of what is being shared */}
+                            <div className="p-3 bg-green-50 rounded-xl border border-green-100 mb-4 text-left">
+                                <p className="text-[10px] font-bold text-green-700 uppercase tracking-tighter mb-1">Sharing Content:</p>
+                                <p className="text-xs text-green-900 truncate font-medium">{pendingShare.content || 'File Attachment'}</p>
+                            </div>
+
+                            {pos.map(po => {
+                                const poChannels = allChannels.filter(c => c.po_id === po.id);
+                                if (poChannels.length === 0) return null;
+                                
+                                return (
+                                    <div key={po.id} className="space-y-2">
+                                        <div className="px-2 py-1 bg-gray-100 rounded text-[10px] font-black text-gray-400 uppercase tracking-widest text-left">{po.order_number} - {po.style_number}</div>
+                                        {poChannels.map(ch => (
+                                            <button 
+                                                key={ch.id} 
+                                                onClick={async () => {
+                                                    try {
+                                                        const targetChannel = ch.id;
+                                                        if (pendingShare.url) {
+                                                            await api.sendMessage(user, targetChannel, `[SHARED FROM OTHER APP] ${pendingShare.content || ''}`);
+                                                            // We send the reference. Real native share often needs file download but this works if URL is accessible
+                                                            await api.sendMessage(user, targetChannel, `[FILE]${pendingShare.url}|Shared from other app`);
+                                                        } else {
+                                                            await api.sendMessage(user, targetChannel, pendingShare.content);
+                                                        }
+                                                        setPendingShare(null);
+                                                        navigate(`/group/${ch.id}`);
+                                                        alert('Shared successfully!');
+                                                    } catch (err: any) {
+                                                        alert('Share failed: ' + err.message);
+                                                    }
+                                                }}
+                                                className="w-full text-left p-4 border border-gray-100 rounded-2xl hover:bg-green-50 transition-colors flex items-center justify-between group bg-white shadow-sm"
+                                            >
+                                                <span className="font-bold text-gray-700">{ch.name}</span>
+                                                <span className="text-[#008069] opacity-0 group-hover:opacity-100 font-black">SEND →</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
         </MainLayout>
     );
 };
