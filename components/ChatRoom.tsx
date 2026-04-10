@@ -34,6 +34,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
     const recordingTimerRef = useRef<any>(null);
     const chunksRef = useRef<Blob[]>([]);
     const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+    const [openUpwards, setOpenUpwards] = useState(false);
     const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
     // Group editing state
@@ -693,7 +694,16 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                                         
                                         {!isDeleted && (
                                             <button 
-                                                onClick={() => setOpenDropdownId(showDropdown ? null : msg.id)}
+                                                onClick={(e) => {
+                                                    if (openDropdownId === msg.id) {
+                                                        setOpenDropdownId(null);
+                                                    } else {
+                                                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                                        const spaceBelow = window.innerHeight - rect.bottom;
+                                                        setOpenUpwards(spaceBelow < 200);
+                                                        setOpenDropdownId(msg.id);
+                                                    }
+                                                }}
                                                 className={`absolute top-1 right-1 p-1 rounded-full transition-colors z-10 bg-white/50 backdrop-blur-sm shadow-sm md:opacity-0 group-hover:opacity-100 ${showDropdown ? 'opacity-100 text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
                                             >
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
@@ -701,7 +711,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                                         )}
 
                                         {showDropdown && !isDeleted && (
-                                            <div className="absolute top-8 right-2 bg-white shadow-xl rounded-lg py-1 w-44 z-20 border border-gray-100 animate-in fade-in zoom-in-95 duration-100">
+                                            <div className={`absolute ${openUpwards ? 'bottom-8' : 'top-8'} right-2 bg-white shadow-xl rounded-lg py-1 w-44 z-20 border border-gray-100 animate-in fade-in zoom-in-95 duration-100`}>
                                                 <button onClick={handlePinSpec} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">📌 Pin to Specs</button>
                                                 <button onClick={() => { setOpenDropdownId(null); setForwardingMessage(msg); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">🔄 Forward</button>
                                                 <button onClick={handleShareMessage} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">📤 Share Native</button>

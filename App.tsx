@@ -74,37 +74,45 @@ const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user
             setDeferredPrompt(e);
         });
 
-        // Initialize Share Target Listener
-        const checkIncomingShare = async () => {
+        // Initialize Share Target Listener (New Custom Implementation)
+        const handleKramizShare = (event: any) => {
+            console.log('[Native Share] Received event:', event);
             try {
-                const result = await SendIntent.checkSendIntentReceived();
-                if (result && (result.title || result.url || result.description || result.type)) {
-                    // Normalize the shared data
+                const data = typeof event.detail === 'string' ? JSON.parse(event.detail) : event.detail;
+                if (data && data.uri) {
                     setPendingShare({
-                        type: result.type || 'text/plain',
-                        content: result.description || result.title || '',
-                        url: result.url || null
+                        type: 'file',
+                        content: 'Image/File from WhatsApp',
+                        url: data.uri
                     });
                 }
-            } catch (err) { }
+            } catch (err) {
+                console.error('[Native Share] Failed to parse share data:', err);
+            }
         };
 
         if (isNative) {
-            checkIncomingShare();
-            // In Android, tapping Kramiz in the share menu might resume the app and trigger a custom app event
-            window.addEventListener('appUrlOpen', () => checkIncomingShare());
+            window.addEventListener('kramizShareIntent' as any, handleKramizShare);
         }
 
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible' && !(window as any).isKramizUploading) {
-                queryClient.invalidateQueries();
-                if (isNative) checkIncomingShare();
+            // Only refresh if the app has been hidden for more than 5 minutes 
+            // This stops the 'constant refreshing' when just checking WhatsApp briefly
+            const lastHidden = (window as any).lastHiddenTime || 0;
+            const now = Date.now();
+            
+            if (document.visibilityState === 'visible') {
+                if (now - lastHidden > 300000) { // 5 minutes
+                    queryClient.invalidateQueries();
+                }
+            } else {
+                (window as any).lastHiddenTime = now;
             }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('appUrlOpen', checkIncomingShare);
+            window.removeEventListener('kramizShareIntent' as any, handleKramizShare);
         };
     }, []);
 
