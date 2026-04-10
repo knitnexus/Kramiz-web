@@ -249,10 +249,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
             alert("Please enter a group name (e.g. Knitting, Printing).");
             return;
         }
-        if (!newGroupData.vendorId) {
-            alert("Please select a supplier for this group. Use the 'Overview' group for internal team chat.");
-            return;
-        }
         createGroupMutation.mutate(newGroupData);
     };
 
@@ -670,11 +666,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                 <div className="space-y-4 pb-16">
                     <div><label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-tight">Group Name</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="e.g. Knitting..." value={newGroupData.name} onChange={e => setNewGroupData({ ...newGroupData, name: e.target.value })} /></div>
                     <div className="relative">
-                        <label className="block text-sm font-bold text-gray-700 uppercase tracking-tight mb-1">Assign Supplier</label>
+                        <label className="block text-sm font-bold text-gray-700 uppercase tracking-tight mb-1">Assign Supplier (Optional)</label>
                         <div className="relative" ref={supplierComboboxRef}>
-                            <input type="text" className="w-full border rounded px-3 py-2 pr-8 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="Search supplier..." value={supplierSearchQuery || vendorsList.find(v => v.id === newGroupData.vendorId)?.name || ''} onChange={(e) => { setSupplierSearchQuery(e.target.value); setIsSupplierDropdownOpen(true); if (!e.target.value) setNewGroupData({ ...newGroupData, vendorId: '' }); }} onFocus={() => setIsSupplierDropdownOpen(true)} />
+                            <input type="text" className="w-full border rounded px-3 py-2 pr-8 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="Search supplier (or leave empty for internal)..." value={supplierSearchQuery || (vendorsList.find(v => v.id === newGroupData.vendorId)?.name || '')} onChange={(e) => { setSupplierSearchQuery(e.target.value); setIsSupplierDropdownOpen(true); if (!e.target.value) setNewGroupData({ ...newGroupData, vendorId: '' }); }} onFocus={() => setIsSupplierDropdownOpen(true)} />
                             {isSupplierDropdownOpen && (
                                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto">
+                                    <div className="px-3 py-2 text-m cursor-pointer hover:bg-gray-100 text-blue-600 font-bold border-b border-gray-100" onClick={() => { setNewGroupData({ ...newGroupData, vendorId: '' }); setSupplierSearchQuery(''); setIsSupplierDropdownOpen(false); }}>
+                                        No Supplier
+                                    </div>
                                     {vendorsList.filter(v => v.name.toLowerCase().includes(supplierSearchQuery.toLowerCase()) || ((v as any).adminPhone || '').includes(supplierSearchQuery)).map(v => (
                                         <div key={v.id} className={`px-3 py-2 text-m cursor-pointer hover:bg-gray-100 ${newGroupData.vendorId === v.id ? 'bg-[#008069]/10 text-[#008069] font-medium' : 'text-gray-700'}`} onClick={() => { setNewGroupData({ ...newGroupData, vendorId: v.id }); setSupplierSearchQuery(''); setIsSupplierDropdownOpen(false); }}>
                                             <div className="flex flex-col"><span className="font-semibold">{v.name}</span><span className="text-[12px] text-gray-500">Admin: {(v as any).adminName} • {(v as any).adminPhone}</span></div>
@@ -683,6 +682,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                 </div>
                             )}
                         </div>
+                        <p className="text-[10px] text-gray-400 mt-2">Leave unassigned if this group is for internal team management or hasn't been assigned yet.</p>
                     </div>
                 </div>
             </Modal>
