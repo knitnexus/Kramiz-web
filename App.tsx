@@ -6,7 +6,6 @@ import { Login } from './components/Login';
 import { api } from './supabaseAPI';
 import { LandingPage } from './components/LandingPage';
 import { Signup } from './components/Signup';
-import { ProductTour } from './components/ProductTour';
 import { User, Message } from './types';
 import { saveSession, loadSession, clearSession } from './sessionUtils';
 import { supabase } from './supabaseClient';
@@ -35,7 +34,7 @@ const AuthenticatedLayout: React.FC<{ user: User; onLogout: () => void }> = ({ u
     const { groupId } = useParams();
     const {
         deferredPrompt, setDeferredPrompt, showInstallPopup,
-        setShowInstallPopup, runTour, setRunTour, handleInstall,
+        setShowInstallPopup, handleInstall,
         pendingShare, setPendingShare
     } = useOnboarding();
 
@@ -74,8 +73,6 @@ const AuthenticatedLayout: React.FC<{ user: User; onLogout: () => void }> = ({ u
             handleLogout={onLogout}
             deferredPrompt={deferredPrompt}
             setDeferredPrompt={setDeferredPrompt}
-            setRunTour={setRunTour}
-            runTour={runTour}
             isSettings={isSettings}
         >
             <Outlet />
@@ -100,14 +97,7 @@ const AuthenticatedLayout: React.FC<{ user: User; onLogout: () => void }> = ({ u
                 </div>
             )}
 
-            <ProductTour
-                currentUser={user}
-                run={runTour}
-                onFinish={() => {
-                    setRunTour(false);
-                    localStorage.setItem('kramiz_onboarded', 'true');
-                }}
-            />
+
 
             {pendingShare && (
                 <KramizSharePopup
@@ -164,16 +154,15 @@ const ChatRoomWrapper: React.FC<{ user: User }> = ({ user }) => {
 
 const AppRoutes: React.FC<{
     user: User | null;
-    handleDemoLogin: () => Promise<void>;
     handleLogin: (loggedInUser: User, rememberMe: boolean) => void;
     handleLogout: () => void;
-}> = ({ user, handleDemoLogin, handleLogin, handleLogout }) => {
+}> = ({ user, handleLogin, handleLogout }) => {
     const navigate = useNavigate();
 
     return (
         <Routes>
             {/* Public Routes */}
-            <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : (isNative ? <Navigate to="/login" replace /> : <LandingPage onDemoLogin={handleDemoLogin} />)} />
+            <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : (isNative ? <Navigate to="/login" replace /> : <LandingPage />)} />
             <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login onLogin={handleLogin} onBack={() => navigate('/')} />} />
             <Route path="/signup" element={user ? <Navigate to="/dashboard" replace /> : <Signup onBack={() => navigate('/')} onSignupSuccess={() => navigate('/login')} />} />
 
@@ -192,7 +181,7 @@ const AppRoutes: React.FC<{
 
 const App: React.FC = () => {
     const {
-        user, isRestoringSession, handleLogin, handleLogout, handleDemoLogin
+        user, isRestoringSession, handleLogin, handleLogout
     } = useAppSync();
 
 
@@ -214,7 +203,6 @@ const App: React.FC = () => {
         <HashRouter>
             <AppRoutes
                 user={user}
-                handleDemoLogin={handleDemoLogin}
                 handleLogin={handleLogin}
                 handleLogout={handleLogout}
             />

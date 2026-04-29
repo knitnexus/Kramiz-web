@@ -78,7 +78,7 @@ export const SettingsListPanel: React.FC<ListPanelProps> = ({
                         icon="🔔" 
                         iconBg="bg-yellow-100" 
                         label="Notifications"     
-                        subtitle="Test and manage push alerts"                          
+                        subtitle="History and preferences"                          
                         onClick={() => navigate('/settings/notifications')} 
                         active={activeRoute === 'notifications'} 
                     />

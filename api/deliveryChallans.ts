@@ -8,6 +8,7 @@
 
 import { supabase, supabaseAdmin } from '../supabaseClient';
 import { User, DeliveryChallan, DCItem, hasPermission } from '../types';
+import { triggerRemoteNotification } from '../notificationUtils';
 
 // ── DC Number Generators ────────────────────────────────────────────────────
 
@@ -80,6 +81,52 @@ export const createDeliveryChallan = async (
         .single();
 
     if (error) throw new Error(error.message);
+
+    // ── AUTO-BRIDGE: Create Inward Challan for the Receiver ────────────────
+    if (params.receiver_company_id) {
+        try {
+            // Generate IC number for the receiver (using their company context)
+            const d = new Date();
+            const yy = String(d.getFullYear()).slice(2);
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            const icPrefix = `IC-${yy}${mm}${dd}`;
+            
+            const { count } = await supabaseAdmin
+                .from('inward_challans')
+                .select('*', { count: 'exact', head: true })
+                .eq('receiver_company_id', params.receiver_company_id)
+                .like('ic_number', `${icPrefix}%`);
+            
+            const seq = String((count || 0) + 1).padStart(3, '0');
+            const ic_number = `${icPrefix}-${seq}`;
+
+            await supabase.from('inward_challans').insert({
+                ic_number,
+                channel_id:          params.channel_id,
+                linked_dc_id:        data.id,
+                sender_company_id:   currentUser.company_id,
+                receiver_company_id: params.receiver_company_id,
+                order_number:        params.order_number,
+                ref_order_number:    dc_number, // Use the sender's DC number as their reference
+                items_received:      params.items,
+                status:              'TO_RECEIVE', // Use defined type status
+                notes:               'Auto-generated from Partner Dispatch'
+            });
+
+            // ── Notify the receiver ──────────────────────────────────────────────
+            const senderName = currentUser.company?.name || 'A partner';
+            await triggerRemoteNotification({
+                companyId: params.receiver_company_id,
+                title:     'New Delivery Challan 🚚',
+                body:      `${senderName} has dispatched ${dc_number}. Check your Inward Log.`,
+                data:      { type: 'DC', dc_id: data.id }
+            });
+        } catch (bridgeErr) {
+            console.error('DC Auto-bridge failed:', bridgeErr);
+        }
+    }
+
     return data as DeliveryChallan;
 };
 

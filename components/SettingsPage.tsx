@@ -66,7 +66,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onLogou
                 <Routes>
                     <Route path="/" element={<RightPlaceholder />} />
                     <Route path="/company" element={<CompanyProfileSettings currentUser={currentUser} />} />
-                    <Route path="/notifications" element={<NotificationsSettings />} />
+                    <Route path="/notifications" element={<NotificationsSettings currentUser={currentUser} />} />
                     <Route path="/team" element={<TeamSettings currentUser={currentUser} />} />
                     <Route path="/partners" element={<PartnersSettings currentUser={currentUser} />} />
                     <Route path="/security" element={<SecuritySettings currentUser={currentUser} />} />

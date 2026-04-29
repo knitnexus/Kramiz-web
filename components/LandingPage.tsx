@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface LandingPageProps {
-    onDemoLogin: () => void;
 }
 
 const DEMO_CHAT_MESSAGES = [
@@ -20,7 +19,7 @@ const CHAOS_MESSAGES = [
     { sender: '+91 99887...', text: '???', time: '10:15 AM', color: 'text-gray-600' },
 ];
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onDemoLogin }) => {
+export const LandingPage: React.FC<LandingPageProps> = () => {
     const navigate = useNavigate();
     const [msgIndex, setMsgIndex] = useState(0);
     const [chaosIndex, setChaosIndex] = useState(0);
@@ -142,13 +141,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onDemoLogin }) => {
                         </p>
 
                         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                            <button
-                                onClick={onDemoLogin}
-                                className="px-6 py-3 bg-[#008069] text-white rounded-xl font-bold text-base shadow-lg shadow-green-900/20 hover:shadow-green-900/30 hover:-translate-y-1 transition-all flex items-center justify-center gap-2"
-                            >
-                                <span className="text-xl">🚀</span>
-                                Try Live Demo
-                            </button>
+
                             <button
                                 onClick={() => navigate('/signup')}
                                 className="px-6 py-3 bg-white text-[#008069] rounded-xl font-bold text-base border border-[#008069]/20 hover:bg-green-50 transition-all font-bold"

@@ -1,5 +1,4 @@
-
-// Utility to handle sounds and haptics — with Capacitor native support
+import { supabase } from './supabaseClient';
 import { isNative, hapticFeedback, scheduleLocalNotification } from './capacitorUtils';
 
 export const playNotificationSound = () => {
@@ -30,5 +29,33 @@ export const showNativeNotification = async (title: string, body: string, data?:
         await scheduleLocalNotification(title, body, undefined, data);
     } else if ('Notification' in window && Notification.permission === 'granted') {
         new Notification(title, { body, icon: '/favicon.png' });
+    }
+};
+
+/**
+ * Trigger a push notification to specific users via Edge Function.
+ */
+export const triggerRemoteNotification = async (params: {
+    userIds?:  string[];
+    companyId?: string;
+    title:     string;
+    body:      string;
+    data?:     Record<string, any>;
+}) => {
+    try {
+        const { data, error } = await supabase.functions.invoke('notify', {
+            body: {
+                user_ids:   params.userIds,
+                company_id: params.companyId,
+                title:      params.title,
+                body:       params.body,
+                data:       { ...params.data, type: 'SYSTEM' }
+            }
+        });
+
+        if (error) throw error;
+        console.log('[Notification] Remote notification triggered:', data);
+    } catch (err) {
+        console.error('[Notification] Failed to trigger remote notification:', err);
     }
 };

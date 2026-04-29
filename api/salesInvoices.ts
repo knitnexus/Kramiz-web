@@ -6,6 +6,7 @@
 
 import { supabase, supabaseAdmin } from '../supabaseClient';
 import { User, Invoice, InvoiceItem, GSTType, GSTRate, hasPermission } from '../types';
+import { triggerRemoteNotification } from '../notificationUtils';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,19 @@ export const createSalesInvoice = async (
             });
             
         if (mirrorError) console.error("Auto-mirror failed:", mirrorError.message);
+
+        // ── Notify the buyer ────────────────────────────────────────────────
+        try {
+            const sellerName = currentUser.company?.name || 'A partner';
+            await triggerRemoteNotification({
+                companyId: params.buyer_company_id,
+                title:     'New Invoice Received 📄',
+                body:      `${sellerName} has sent you invoice ${inv_no}.`,
+                data:      { type: 'INVOICE', invoice_id: data.id }
+            });
+        } catch (notifyErr) {
+            console.error('Non-critical notification failure:', notifyErr);
+        }
     }
 
     return data as Invoice;

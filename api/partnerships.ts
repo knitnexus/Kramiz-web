@@ -11,6 +11,7 @@
 import { supabase } from '../supabaseClient';
 import { Company, User, Partnership, hasPermission } from '../types';
 import { bridgeContactToCompany } from '../services/partnerUtils';
+import { triggerRemoteNotification } from '../notificationUtils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SEARCH
@@ -64,6 +65,24 @@ export const sendPartnershipRequest = async (
         .single();
 
     if (error) throw new Error('Failed to send request: ' + error.message);
+
+    // ── Notify the target company admins ───────────────────────────────────
+    try {
+        const companyName = currentUser.company?.name || 'A partner';
+        const title = 'New Connection Request';
+        const body  = `${companyName} has sent you a connection request on Kramiz.`;
+        
+        // Send push notification (Edge Function will automatically save to history)
+        await triggerRemoteNotification({
+            companyId: targetCompanyId,
+            title,
+            body,
+            data:      { type: 'INVITE', partnership_id: data.id }
+        });
+    } catch (notifyErr) {
+        console.error('Non-critical notification failure:', notifyErr);
+    }
+
     return data as Partnership;
 };
 
@@ -87,6 +106,23 @@ export const acceptPartnershipRequest = async (
         .single();
 
     if (error) throw new Error('Failed to accept: ' + error.message);
+
+    // ── Notify the requester that their invite was accepted ───────────────
+    try {
+        const receiverName = currentUser.company?.name || 'A partner';
+        const title = 'Connection Request Accepted!';
+        const body  = `${receiverName} has accepted your connection request.`;
+
+        // Send push notification (Edge Function will automatically save to history)
+        await triggerRemoteNotification({
+            companyId: data.requester_id,
+            title,
+            body,
+            data:      { type: 'ACCEPT', partnership_id: data.id }
+        });
+    } catch (notifyErr) {
+        console.error('Non-critical notification failure:', notifyErr);
+    }
 
     // ── Auto-Bridge Logic ───────────────────────────────────────────────────
     // When accepting a partnership, bridge BOTH companies' identities.

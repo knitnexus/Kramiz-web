@@ -93,9 +93,24 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
         }
     }, [linkedDCId, initialData]);
 
+    // --- Derived Data ---
+    const partnerIds = new Set(partners.map(p => p.id));
+
     const allPossibleSenders = [
-        ...partners.map(p => ({ id: p.id, companyId: p.id, type: 'partner' as const, name: p.name, tag: 'Partner' })),
-        ...contacts.map(c => ({ id: c.id, companyId: c.linked_company_id, type: 'contact' as const, name: c.name, tag: 'Manual Contact' }))
+        ...partners.map(p => ({ 
+            id: p.id, 
+            companyId: p.id, 
+            type: 'partner' as const, 
+            name: p.name, 
+            tag: 'Partner' 
+        })),
+        ...contacts.filter(c => !c.linked_company_id || !partnerIds.has(c.linked_company_id)).map(c => ({ 
+            id: c.id, 
+            companyId: c.linked_company_id, 
+            type: 'contact' as const, 
+            name: c.name, 
+            tag: c.linked_company_id ? 'Partner' : 'Manual Contact'
+        }))
     ].filter(s => s.name.toLowerCase().includes(senderSearch.toLowerCase()));
 
     // ── Submit ─────────────────────────────────────────────────────────────────

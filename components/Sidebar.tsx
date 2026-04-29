@@ -13,11 +13,9 @@ interface SidebarProps {
     onLogout: () => void;
     installPrompt?: any;
     onInstallApp?: () => void;
-    onTakeTour?: () => void;
-    isTourActive?: boolean;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, selectedGroupId, onLogout, installPrompt, onInstallApp, onTakeTour, isTourActive }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, selectedGroupId, onLogout, installPrompt, onInstallApp }) => {
     const {
         activeTab, setActiveTab,
         globalSearchQuery, setGlobalSearchQuery,
@@ -132,53 +130,59 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                 });
 
                                 if (filteredOrders.length === 0) {
-                                    const hasAssignedTasks = allChannels.length > 0;
                                     return (
-                                        <div className="p-10 text-center">
-                                            <p className="text-gray-400 text-sm italic mb-4">No matching orders found.</p>
-                                            {hasAssignedTasks && (
-                                                <div className="bg-green-50/50 rounded-2xl p-5 border border-green-100/50">
-                                                    <p className="text-[11px] text-[#008069] font-black uppercase tracking-[0.15em] leading-relaxed">
-                                                    Groups from partners appear in the <span onClick={() => setSidebarView('PARTNER')} className="underline decoration-2 underline-offset-2 cursor-pointer hover:text-[#005c4b] transition-colors">Partners</span> tab above.
-                                                    </p>
-                                                </div>
+                                        <div className="p-12 text-center">
+                                            <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-3xl shadow-sm">
+                                                📦
+                                            </div>
+                                            <h3 className="text-lg font-black text-gray-900 font-blanka tracking-widest uppercase mb-2">No Orders Found</h3>
+                                            <p className="text-sm text-gray-500 leading-relaxed max-w-[240px] mx-auto">
+                                                {globalSearchQuery ? "Try searching for a different order number or style." : "Get started by creating your first production order."}
+                                            </p>
+                                            {!globalSearchQuery && canCreateOrder && (
+                                                <button onClick={() => openModal('NEW_ORDER')} className="mt-8 bg-[#008069] text-white px-8 py-3 rounded-2xl text-[13px] font-black uppercase tracking-widest shadow-lg shadow-green-200 hover:bg-[#005c4b] active:scale-95 transition-all">
+                                                    + Create Order
+                                                </button>
                                             )}
                                         </div>
                                     );
                                 }
 
-                                return filteredOrders.map((order, idx) => {
-                                    const orderChannels = channelsMap[order.id] || [];
-                                    const anyDueSoon = orderChannels.some(ch => isDueSoon(ch.due_date) && ch.status !== 'COMPLETED');
+                                return filteredOrders.map(order => {
+                                    const isExpanded = expandedOrders[order.id];
+                                    const channels = channelsMap[order.id] || [];
+                                    const hasUnread = channels.some(ch => ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at));
                                     const isCompleted = order.status === 'COMPLETED';
-                                    const isExpanded = expandedOrders[order.id] ?? true;
-                                    
+
                                     return (
-                                        <div key={order.id} className={`${idx > 0 ? 'border-t border-gray-100' : ''} ${isCompleted ? 'opacity-60' : ''}`}>
-                                            <div onClick={() => toggleOrder(order.id)} className="px-5 py-3.5 flex items-center justify-between group cursor-pointer bg-gray-50/80 hover:bg-gray-100 transition-colors border-b border-gray-100/50">
-                                                <div className="flex-1 min-w-0 pr-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <h3 className={`font-extrabold text-[16px] tracking-tight truncate leading-tight ${anyDueSoon ? 'text-red-600' : 'text-[#111b21]'}`}>{order.order_number}</h3>
-                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider ${order.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' : order.status === 'COMPLETED' ? 'bg-gray-100 text-gray-500' : 'bg-yellow-100 text-yellow-700'}`}>
-                                                            {order.status === 'IN_PROGRESS' ? 'Active' : order.status}
-                                                        </span>
+                                        <div key={order.id} className={`transition-all ${isExpanded ? 'bg-gray-50/50' : 'bg-white'}`}>
+                                            <div 
+                                                onClick={() => toggleOrder(order.id)}
+                                                className={`px-5 py-4 cursor-pointer flex items-center justify-between border-b border-gray-50 hover:bg-gray-50 transition-colors ${hasUnread ? 'bg-green-50/20' : ''}`}
+                                            >
+                                                <div className="flex items-center gap-4 min-w-0">
+                                                    <div className="relative">
+                                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-sm border-2 transition-all ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-white'}`}>
+                                                            📦
+                                                        </div>
+                                                        {hasUnread && <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#00a884] rounded-full border-2 border-white shadow-sm"></div>}
                                                     </div>
-                                                    <p className="text-[12px] text-gray-500 font-bold truncate mt-1 tracking-tight">{order.style_number}</p>
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2 mb-0.5">
+                                                            <h3 className={`text-[17px] font-black truncate uppercase tracking-tight ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>{order.order_number}</h3>
+                                                            {isCompleted && <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full font-black uppercase">Archived</span>}
+                                                        </div>
+                                                        <p className="text-[12px] font-bold text-[#008069] truncate uppercase tracking-widest">{order.style_number}</p>
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-center gap-1.5 shrink-0">
-                                                    {canEditOrder && order.manufacturer_id === currentUser.company_id && (
-                                                        <button onClick={(e) => { e.stopPropagation(); openModal('EDIT_ORDER', order); }} className="p-2 hover:bg-white rounded-full text-gray-400 hover:text-[#008069] transition-all">
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                                        </button>
-                                                    )}
-                                                    <svg className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
+                                                <div className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                                                    <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
                                                 </div>
                                             </div>
+
                                             {isExpanded && (
-                                                <div className="divide-y divide-gray-50 bg-white">
-                                                    {orderChannels.length === 0 ? (
-                                                        <div className="px-8 py-4 text-[13px] text-gray-400 italic">No groups setup...</div>
-                                                    ) : orderChannels.map((ch) => {
+                                                <div className="bg-white/50 animate-in slide-in-from-top-1 duration-200">
+                                                    {channels.map(ch => {
                                                         const hasUnread = ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at);
                                                         return (
                                                             <div
@@ -191,10 +195,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                                                 className={`px-6 py-4 cursor-pointer flex items-center justify-between group transition-all hover:bg-gray-50 border-l-4 ${selectedGroupId === ch.id ? 'bg-[#f0f2f5] border-[#008069]' : 'border-transparent'}`}
                                                             >
                                                                 <div className="flex-1 min-w-0 pr-3">
-                                                                    <div className="flex justify-between items-start mb-1">
+                                                                    <div className="flex justify-between items-start mb-0.5">
                                                                         <div className="flex items-center gap-2 truncate">
                                                                             <span className={`text-[16px] truncate ${isDueSoon(ch.due_date) && ch.status !== 'COMPLETED' ? 'text-red-600 font-black' : hasUnread ? 'font-bold text-[#111b21]' : 'font-medium text-gray-700'}`}>{ch.name}</span>
-                                                                            <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter shrink-0 ${ch.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' : ch.status === 'COMPLETED' ? 'bg-gray-100 text-gray-500' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-regular uppercase tracking-tight shrink-0 transition-all ${ch.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' : ch.status === 'COMPLETED' ? 'bg-gray-100 text-gray-500' : 'bg-yellow-100 text-yellow-700'}`}>
                                                                                 {ch.status === 'IN_PROGRESS' ? 'Active' : ch.status}
                                                                             </span>
                                                                         </div>
@@ -230,8 +234,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                 // Partner-wise View
                                 const partnerGroups: Record<string, { name: string, channels: any[] }> = {};
                                 allChannels.forEach(ch => {
+                                    // 1. Skip Overview channels (User explicitly asked to not show them in Partners)
+                                    if (ch.type === 'OVERVIEW') return;
+                                    
+                                    // 2. Only show if linked to a Partner (Company) or a Contact
+                                    const hasPartner = !!ch.vendor_id || !!ch.contact_id;
+                                    if (!hasPartner) return;
+
                                     if (activeTab !== 'ALL' && ch.status !== activeTab) return;
-                                    const partnerName = (ch as any).vendor?.name || 'Internal / General';
+                                    
+                                    const partnerName = (ch as any).vendor?.name || (ch as any).contact?.name || 'External / Manual';
                                     const searchMatch = partnerName.toLowerCase().includes(globalSearchQuery.toLowerCase()) || ch.name.toLowerCase().includes(globalSearchQuery.toLowerCase());
                                     if (!searchMatch) return;
 
@@ -269,7 +281,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                                             <div className="flex justify-between items-start mb-0.5">
                                                                 <div className="flex items-center gap-2 truncate">
                                                                     <span className={`text-[16px] truncate ${isDueSoon(ch.due_date) && ch.status !== 'COMPLETED' ? 'text-red-600 font-black' : hasUnread ? 'font-bold text-[#111b21]' : 'font-medium text-gray-700'}`}>{ch.name}</span>
-                                                                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter shrink-0 ${ch.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' : ch.status === 'COMPLETED' ? 'bg-gray-100 text-gray-500' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-regular uppercase tracking-tight shrink-0 transition-all ${ch.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' : ch.status === 'COMPLETED' ? 'bg-gray-100 text-gray-500' : 'bg-yellow-100 text-yellow-700'}`}>
                                                                         {ch.status === 'IN_PROGRESS' ? 'Active' : ch.status}
                                                                     </span>
                                                                 </div>

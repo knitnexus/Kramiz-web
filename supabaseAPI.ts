@@ -15,6 +15,8 @@ import * as inwardChallanApi   from './api/inwardChallans';
 import * as salesInvoiceApi    from './api/salesInvoices';
 import * as purchaseInvoiceApi from './api/purchaseInvoices';
 import * as expensesApi        from './api/expenses';
+import * as notificationsApi   from './api/notifications';
+import { tasksApi }             from './api/tasks';
 import * as partnerUtils     from './services/partnerUtils';
 
 // ============================================
@@ -424,7 +426,8 @@ export const api = {
                 channel_files(*),
                 messages(content, created_at),
                 order:order_id(*),
-                vendor:vendor_id(id, name)
+                vendor:vendor_id(id, name),
+                contact:contact_id(name)
             `)
             .eq('channel_members.user_id', currentUser.id)
             .order('created_at', { foreignTable: 'messages', ascending: false });
@@ -464,7 +467,7 @@ export const api = {
                 vendor_id: vendorId || null,
                 contact_id: contactId || null,
                 type: (vendorId || contactId) ? 'VENDOR' : 'INTERNAL',
-                status: 'ACTIVE'
+                status: 'PENDING'
             })
             .select()
             .single();
@@ -934,24 +937,6 @@ export const api = {
     ...salesInvoiceApi,    // → client/api/salesInvoices.ts
     ...purchaseInvoiceApi, // → client/api/purchaseInvoices.ts
     ...expensesApi,        // → client/api/expenses.ts
-
-    ensureDemoData: async (currentUser: User) => {
-        // 1. Check if Order #505 exists
-        const { data: existingOrder } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('manufacturer_id', currentUser.company_id)
-            .eq('order_number', '505')
-            .single();
-
-        if (existingOrder) return; // Data already exists
-
-        // 2. Create Order #505 (this also creates the Overview channel automatically in createOrder)
-        await api.createOrder(
-            currentUser,
-            '505',
-            'S-BLUE-101',
-            [] // No additional team members for now
-        );
-    },
+    ...notificationsApi,   // → client/api/notifications.ts
+    tasks: tasksApi,
 };

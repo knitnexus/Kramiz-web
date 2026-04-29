@@ -6,6 +6,7 @@
 
 import { supabase } from '../supabaseClient';
 import { User, Invoice, InvoiceItem, GSTType, GSTRate, hasPermission } from '../types';
+import { triggerRemoteNotification } from '../notificationUtils';
 
 const calculateTotals = (items: InvoiceItem[], gstRate?: GSTRate, gstType?: GSTType) => {
     const subtotal   = items.reduce((sum, it) => sum + it.amount, 0);
@@ -69,6 +70,22 @@ export const createPurchaseInvoice = async (
         .single();
 
     if (error) throw new Error(error.message);
+
+    // ── Notify the seller (if platform partner) ─────────────────────────
+    if (params.seller_company_id) {
+        try {
+            const buyerName = currentUser.company?.name || 'A partner';
+            await triggerRemoteNotification({
+                companyId: params.seller_company_id,
+                title:     'Purchase Invoice Recorded 🧾',
+                body:      `${buyerName} has recorded your invoice ${params.invoice_number}.`,
+                data:      { type: 'PURCHASE_INVOICE', invoice_id: data.id }
+            });
+        } catch (notifyErr) {
+            console.error('Non-critical notification failure:', notifyErr);
+        }
+    }
+
     return data as Invoice;
 };
 

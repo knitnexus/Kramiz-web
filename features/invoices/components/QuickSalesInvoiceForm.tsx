@@ -14,10 +14,11 @@ import { api } from '../../../supabaseAPI';
 interface QuickSalesInvoiceFormProps {
     currentUser: User;
     initialData?: Invoice;
+    onCreated?:  (id: string, num: string) => void;
     onClose:     () => void;
 }
 
-export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ currentUser, initialData, onClose }) => {
+export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ currentUser, initialData, onCreated, onClose }) => {
     const qc = useQueryClient();
     
     // --- State ---
@@ -91,9 +92,24 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
             setItems([{ description: '', hsn_code: '', quantity: '', rate: '', unit: 'PCS' }]);
         }
     };
+    // --- Derived Data ---
+    const partnerIds = new Set(partners.map(p => p.id));
+
     const allPossibleBuyers = [
-        ...partners.map(p => ({ id: p.id, companyId: p.id, type: 'partner' as const, name: p.name, tag: 'Partner' })),
-        ...contacts.map(c => ({ id: c.id, companyId: c.linked_company_id, type: 'contact' as const, name: c.name, tag: 'Manual Contact' }))
+        ...partners.map(p => ({ 
+            id: p.id, 
+            companyId: p.id, 
+            type: 'partner' as const, 
+            name: p.name, 
+            tag: 'Partner' 
+        })),
+        ...contacts.filter(c => !c.linked_company_id || !partnerIds.has(c.linked_company_id)).map(c => ({ 
+            id: c.id, 
+            companyId: c.linked_company_id, 
+            type: 'contact' as const, 
+            name: c.name, 
+            tag: c.linked_company_id ? 'Partner' : 'Manual Contact'
+        }))
     ].filter(s => s.name.toLowerCase().includes(buyerSearch.toLowerCase()));
 
     const subtotal = useMemo(() => {
@@ -163,6 +179,7 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
             }
 
             qc.invalidateQueries({ queryKey: ['sales_invoices'] });
+            if (onCreated) onCreated(initialData ? initialData.id : (await api.getSalesInvoices(currentUser)).find(inv => inv.invoice_number === invoiceData.invoice_number)?.id || 'new', invoiceData.invoice_number || 'INV');
             alert(`Sales Invoice ${initialData ? 'updated' : 'created'} successfully!`);
             onClose();
         } catch (e: any) {

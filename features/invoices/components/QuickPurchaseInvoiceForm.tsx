@@ -12,10 +12,11 @@ import { api } from '../../../supabaseAPI';
 interface QuickPurchaseInvoiceFormProps {
     currentUser: User;
     initialData?: Invoice;
+    onCreated?:  (id: string, num: string) => void;
     onClose:     () => void;
 }
 
-export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> = ({ currentUser, initialData, onClose }) => {
+export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> = ({ currentUser, initialData, onCreated, onClose }) => {
     const qc = useQueryClient();
     
     const [sellerSearch, setSellerSearch]       = useState('');
@@ -52,9 +53,24 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
         queryFn:  () => api.getOrders(currentUser),
     });
 
+    // --- Derived Data ---
+    const partnerIds = new Set(partners.map(p => p.id));
+
     const allPossibleSellers = [
-        ...partners.map(p => ({ id: p.id, companyId: p.id, type: 'partner' as const, name: p.name, tag: 'Partner' })),
-        ...contacts.map(c => ({ id: c.id, companyId: c.linked_company_id, type: 'contact' as const, name: c.name, tag: 'Manual Contact' }))
+        ...partners.map(p => ({ 
+            id: p.id, 
+            companyId: p.id, 
+            type: 'partner' as const, 
+            name: p.name, 
+            tag: 'Partner' 
+        })),
+        ...contacts.filter(c => !c.linked_company_id || !partnerIds.has(c.linked_company_id)).map(c => ({ 
+            id: c.id, 
+            companyId: c.linked_company_id, 
+            type: 'contact' as const, 
+            name: c.name, 
+            tag: c.linked_company_id ? 'Partner' : 'Manual Contact'
+        }))
     ].filter(s => s.name.toLowerCase().includes(sellerSearch.toLowerCase()));
 
     const subtotal = useMemo(() => {
@@ -117,7 +133,8 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                 await api.createPurchaseInvoice(currentUser, billData);
             }
             qc.invalidateQueries({ queryKey: ['purchase_invoices'] });
-            alert(`Vendor Bill ${initialData ? 'updated' : 'recorded'} successfully!`);
+            if (onCreated) onCreated(initialData ? initialData.id : 'new', vendorInvoiceNo || 'PINV');
+            alert(`Purchase Invoice ${initialData ? 'updated' : 'recorded'} successfully!`);
             onClose();
         } catch (e: any) {
             alert(e.message);

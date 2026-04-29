@@ -4,13 +4,15 @@ import { Channel, AttachedFile, User } from '../types';
 import { api } from '../supabaseAPI';
 import { compressImage } from '../imageUtils';
 import { useSpecs } from '../hooks/useSpecs';
+import { TaskList } from '@/features/tasks/components/TaskList';
 
 interface SpecDrawerProps {
     channel: Channel;
     currentUser: User;
+    onAddTaskClick?: () => void;
 }
 
-export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) => {
+export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser, onAddTaskClick }) => {
     const {
         isOpen, setIsOpen, activeTab, setActiveTab,
         files, specs, isEditingDueDate, setIsEditingDueDate,
@@ -191,7 +193,21 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                         >
                             📎 Files ({files.length})
                         </button>
+                        <button
+                            onClick={() => setActiveTab('TASKS' as any)}
+                            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === ('TASKS' as any)
+                                ? 'border-[#008069] text-[#008069]'
+                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            ✅ Tasks
+                        </button>
                     </div>
+
+                    {/* Tasks Tab */}
+                    {activeTab === ('TASKS' as any) && (
+                        <TaskList channel={channel} currentUser={currentUser} onAddTaskClick={onAddTaskClick} />
+                    )}
 
                     {/* Specs Tab */}
                     {activeTab === 'SPECS' && (

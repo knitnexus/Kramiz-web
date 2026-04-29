@@ -13,8 +13,6 @@ interface MainLayoutProps {
     handleLogout: () => void;
     deferredPrompt: any;
     setDeferredPrompt: (p: any) => void;
-    setRunTour: (b: boolean) => void;
-    runTour: boolean;
     isSettings?: boolean;
     children: React.ReactNode;
 }
@@ -24,8 +22,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     handleLogout,
     deferredPrompt,
     setDeferredPrompt,
-    setRunTour,
-    runTour,
     isSettings,
     children
 }) => {
@@ -156,8 +152,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                                     deferredPrompt.userChoice.then(() => setDeferredPrompt(null));
                                 }
                             }}
-                            onTakeTour={() => setRunTour(true)}
-                            isTourActive={runTour}
                         />
                     </div>
 

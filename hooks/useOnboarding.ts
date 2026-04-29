@@ -7,7 +7,6 @@ export const useOnboarding = () => {
     const queryClient = useQueryClient();
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [showInstallPopup, setShowInstallPopup] = useState(false);
-    const [runTour, setRunTour] = useState(false);
     const [pendingShare, setPendingShare] = useState<any>(null);
 
     const checkIncomingShare = async () => {
@@ -24,10 +23,6 @@ export const useOnboarding = () => {
     };
 
     const showOnboardingPrompts = () => {
-        if (runTour) {
-            setTimeout(showOnboardingPrompts, 5000);
-            return;
-        }
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission();
         }
@@ -37,10 +32,6 @@ export const useOnboarding = () => {
     };
 
     useEffect(() => {
-        const hasOnboarded = localStorage.getItem('kramiz_onboarded');
-        if (!hasOnboarded) {
-            setTimeout(() => setRunTour(true), 1500);
-        }
         setTimeout(showOnboardingPrompts, 3000);
 
         if (isNative) {
@@ -67,7 +58,7 @@ export const useOnboarding = () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             if (isNative) window.removeEventListener('appUrlOpen', checkIncomingShare);
         };
-    }, [deferredPrompt, runTour]);
+    }, [deferredPrompt]);
 
     const handleInstall = () => {
         if (deferredPrompt) {
@@ -84,8 +75,6 @@ export const useOnboarding = () => {
         setDeferredPrompt,
         showInstallPopup,
         setShowInstallPopup,
-        runTour,
-        setRunTour,
         handleInstall,
         pendingShare,
         setPendingShare

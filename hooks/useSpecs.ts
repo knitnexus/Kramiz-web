@@ -19,7 +19,7 @@ export const useSpecs = (channel: Channel, currentUser: User) => {
         setSpecs(channel.specs || []);
         setEditedDueDate(channel.due_date || '');
         setIsEditingDueDate(false);
-    }, [channel.id]);
+    }, [channel]);
 
     const editChannelMutation = useMutation({
         mutationFn: (updates: Partial<Channel>) => api.updateChannel(currentUser, channel.id, updates),

@@ -71,28 +71,11 @@ export const useAppSync = () => {
         setUser(null);
     };
 
-    const handleDemoLogin = async () => {
-        const mask = document.getElementById('global-loader');
-        if (mask) mask.style.display = 'flex';
-        try {
-            const { user: demoUser } = await api.login('9876543210', '1234');
-            await api.ensureDemoData(demoUser);
-            saveSession(demoUser, true);
-            setUser(demoUser);
-        } catch (err) {
-            console.error('Demo login failed:', err);
-            alert('Demo is currently unavailable.');
-        } finally {
-            if (mask) mask.style.display = 'none';
-        }
-    };
-
     return {
         user,
         setUser,
         isRestoringSession,
         handleLogin,
-        handleLogout,
-        handleDemoLogin
+        handleLogout
     };
 };

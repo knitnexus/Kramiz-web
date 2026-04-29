@@ -8,6 +8,7 @@
 
 import { Company, Contact, DeliveryChallan, InwardChallan, Invoice } from '../types';
 import { supabaseAdmin } from '../supabaseClient';
+import { triggerRemoteNotification } from '../notificationUtils';
 
 export interface UnifiedPartner {
     id:      string;
@@ -166,7 +167,19 @@ export const bridgeContactToCompany = async (companyId: string) => {
                 })
                 .eq('id', contact.id);
 
-            // B. Find all channels linked to this contact
+            // B. Notify the contact owner that their contact has joined Kramiz
+            try {
+                await triggerRemoteNotification({
+                    companyId: contact.owner_company_id,
+                    title:     'Partner Joined Kramiz! ✨',
+                    body:      `${company.name} is now on Kramiz. You can now collaborate on orders directly.`,
+                    data:      { type: 'BRIDGE', company_id: company.id }
+                });
+            } catch (notifyErr) {
+                console.error('[Auto-Bridge] Notification failure:', notifyErr);
+            }
+
+            // C. Find all channels linked to this contact
             const { data: channels } = await supabaseAdmin
                 .from('channels')
                 .select('id')

@@ -17,6 +17,7 @@ import { AllDCsScreen }            from '../features/delivery-challan/AllDCsScre
 import { AllInwardChallansScreen } from '../features/inward-challan/AllInwardChallansScreen';
 import { AllSalesInvoicesScreen }    from '../features/invoices/AllSalesInvoicesScreen';
 import { AllPurchaseInvoicesScreen } from '../features/invoices/AllPurchaseInvoicesScreen';
+import { TaskDashboard } from '../features/tasks/components/TaskDashboard';
 
 interface DashboardViewProps { currentUser: User; }
 
@@ -43,8 +44,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser }) => 
     const { data: sInvoices = [] }   = useQuery<Invoice[]>        ({ queryKey: ['sales_invoices',    currentUser.company_id], queryFn: () => api.getSalesInvoices(currentUser) });
     const { data: pInvoices = [] }   = useQuery<Invoice[]>        ({ queryKey: ['purchase_invoices', currentUser.company_id], queryFn: () => api.getPurchaseInvoices(currentUser) });
     const { data: expenses = [] }    = useQuery<Expense[]>        ({ queryKey: ['expenses',          currentUser.company_id], queryFn: () => api.getExpenses(currentUser) });
+    const { data: userTasks = [] }   = useQuery        ({ queryKey: ['user_tasks',       currentUser.id],         queryFn: () => api.tasks.getUserTasks(currentUser.id) });
 
     const rows = [
+        { key: 'tasks',      icon: '✅', iconBg: 'bg-blue-50   border-blue-100',   label: 'My Tasks',          count: userTasks.length, subtitle: 'Pending actions for me' },
         { key: 'orders',     icon: '📦', iconBg: 'bg-green-50  border-green-100',  label: 'All Orders',        count: orders.length,    subtitle: 'Overview of all orders' },
         { key: 'dcs',        icon: '🚚', iconBg: 'bg-orange-50 border-orange-100', label: 'Delivery Challans', count: dcs.length,       subtitle: 'Outward dispatches' },
         { key: 'ics',        icon: '📥', iconBg: 'bg-teal-50   border-teal-100',   label: 'Inward Challans',   count: ics.length,       subtitle: 'Goods received' },
@@ -95,11 +98,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser }) => 
                                 </p>
                                 <p className="text-[11px] text-gray-400">{row.subtitle}</p>
                             </div>
-                            {row.count > 0 && (
-                                <span className="text-[11px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
-                                    {row.count}
-                                </span>
-                            )}
                             <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                             </svg>
@@ -114,6 +112,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser }) => 
         return (
             <Routes>
                 <Route path="/" element={<RightPlaceholder />} />
+                <Route path="/tasks/*" element={<TaskDashboard {...screenProps} />} />
                 <Route path="/orders/*" element={<AllOrdersScreen {...screenProps} />} />
                 <Route path="/dcs/*" element={<AllDCsScreen {...screenProps} />} />
                 <Route path="/ics/*" element={<AllInwardChallansScreen {...screenProps} />} />

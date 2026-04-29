@@ -71,8 +71,20 @@ export interface User {
   phone: string;
   passcode: string;
   role: UserRole;
+  notifications_enabled?: boolean;
   created_at?: string;
   company?: Company;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string;
+  body: string;
+  type?: 'INVITE' | 'ACCEPT' | 'BRIDGE' | 'MESSAGE' | 'SYSTEM';
+  extra_data?: any;
+  is_read: boolean;
+  created_at: string;
 }
 
 export interface Spec {
