@@ -1,31 +1,47 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Channel, PurchaseOrder, Message, hasPermission } from '../types';
+import { User, Channel, Order, Message, hasPermission } from '../types';
 import { api } from '../supabaseAPI';
 import { SpecDrawer } from './SpecDrawer';
 import { Modal } from './Modal';
 import { compressImage } from '../imageUtils';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { playNotificationSound, triggerVibration } from '../notificationUtils';
-import { supabase } from '../supabaseClient';
-import { generateSlug } from '../routeUtils';
-import { Share } from '@capacitor/share';
-import { isNative } from '../capacitorUtils';
+import { useChat } from '../hooks/useChat';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { isNative, shareFile, shareContent } from '../capacitorUtils';
+import { KramizSharePopup } from './KramizSharePopup';
+import { DCForm } from '@/features/delivery-challan/components/DCForm';
+import { InwardChallanForm } from '@/features/inward-challan/components/InwardChallanForm';
+import { QuickSalesInvoiceForm } from '@/features/invoices/components/QuickSalesInvoiceForm';
+import { QuickPurchaseInvoiceForm } from '@/features/invoices/components/QuickPurchaseInvoiceForm';
+import { SimpleExpenseForm } from '@/features/invoices/components/SimpleExpenseForm';
+import { ChallanDetailView } from '@/features/delivery-challan/components/ChallanDetailView';
+import { QuickTaskForm } from '@/features/tasks/components/QuickTaskForm';
 
 interface ChatRoomProps {
     currentUser: User;
     channel: Channel;
-    po: PurchaseOrder;
+    order: Order;
     onBack: () => void;
 }
 
-export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, onBack }) => {
+export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order, onBack }) => {
     const queryClient = useQueryClient();
+    const {
+        messages, members, loading, sendMessage, updateStatus,
+        addMembers, deleteMessage, hasPerformedInitialScroll,
+        setHasPerformedInitialScroll, initialLastReadAt
+    } = useChat(currentUser, channel);
+
     const [newMessage, setNewMessage] = useState('');
     const [showGroupInfo, setShowGroupInfo] = useState(false);
     const [showAttachMenu, setShowAttachMenu] = useState(false);
     const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
-    const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+    const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+    const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+    const [openUpwards, setOpenUpwards] = useState(false);
+    const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
+    const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedTargetChannelIds, setSelectedTargetChannelIds] = useState<Set<string>>(new Set());
 
     // Voice Note States
     const [isRecording, setIsRecording] = useState(false);
@@ -33,9 +49,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
     const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
     const recordingTimerRef = useRef<any>(null);
     const chunksRef = useRef<Blob[]>([]);
-    const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-    const [openUpwards, setOpenUpwards] = useState(false);
-    const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
     // Group editing state
     const [isEditingGroupName, setIsEditingGroupName] = useState(false);
@@ -43,61 +56,52 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
 
     // Add Member Modal state
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-    const [teamMembers, setTeamMembers] = useState<User[]>([]);
+    const [teamMembersList, setTeamMembersList] = useState<User[]>([]);
     const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
     const [isAdding, setIsAdding] = useState(false);
-    const [hasPerformedInitialScroll, setHasPerformedInitialScroll] = useState(false);
-    const initialLastReadAtRef = useRef<string | undefined>(channel.last_read_at);
-
-    const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
-
-    // Queries with Local-First Trust - rely on Realtime for updates.
-    const { data: messages = [], isLoading: loadingMessages } = useQuery({
-        queryKey: ['messages', channel.id],
-        queryFn: () => api.getMessages(currentUser, channel.id),
-        refetchOnWindowFocus: false, // Don't flicker when app regains focus
-        refetchOnMount: false, // Use cached data if available
-        staleTime: 10 * 60 * 1000, // 10 minutes (Trust local state)
-        gcTime: 30 * 60 * 1000,
-    });
-
-    const { data: members = [], isLoading: loadingMembers } = useQuery({
-        queryKey: ['members', channel.id],
-        queryFn: () => api.getChannelMembers(channel.id),
-    });
-
-    const { data: allChannels = [] } = useQuery({
-        queryKey: ['channels', currentUser.id],
-        queryFn: () => api.getAllChannels(currentUser),
-        refetchInterval: 10000, // Sync sidebar unread counts every 10s
-    });
-    const siblingChannels = allChannels.filter(c => c.po_id === po.id && c.id !== channel.id);
-
-    // FIX: Only show total loading spinner if we have NO data yet.
-    // This prevents the "screen flicker" when sending or background refetching.
-    const loading = (loadingMessages && messages.length === 0) || (loadingMembers && members.length === 0);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const wasCancelledRef = useRef(false);
+    const photoInputRef = useRef<HTMLInputElement>(null);
 
-    // Auto-resize textarea
-    useEffect(() => {
-        if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
-            const newHeight = Math.max(44, Math.min(textareaRef.current.scrollHeight, 120));
-            textareaRef.current.style.height = `${newHeight}px`;
-        }
-    }, [newMessage]);
+    // Document Modal states
+    const [showDCForm, setShowDCForm] = useState(false);
+    const [showICForm, setShowICForm] = useState(false);
+    const [showSalesInvForm, setShowSalesInvForm] = useState(false);
+    const [showPurchaseInvForm, setShowPurchaseInvForm] = useState(false);
+    const [showExpenseForm, setShowExpenseForm] = useState(false);
+    const [showTaskForm, setShowTaskForm] = useState(false);
+
+    // Document Viewing state
+    const [viewingDoc, setViewingDoc] = useState<{ type: 'DC' | 'IC' | 'SI' | 'PI' | 'EX', id: string, num: string } | null>(null);
+    const [docData, setDocData] = useState<any>(null);
+    const [loadingDoc, setLoadingDoc] = useState(false);
+
+    const handleViewDoc = async (type: 'DC' | 'IC' | 'SI' | 'PI' | 'EX', id: string, num: string) => {
+        setViewingDoc({ type, id, num });
+        setLoadingDoc(true);
+        try {
+            let data;
+            if (type === 'DC') data = await api.getDCById(id);
+            else if (type === 'IC') data = await api.getInwardChallanById(id);
+            // Invoices/Expenses fetch logic can be added here if needed
+            setDocData(data);
+        } catch (e) { console.error('Failed to fetch doc', e); }
+        finally { setLoadingDoc(false); }
+    };
 
     // ROLE-BASED PERMISSIONS
     const canAddMembers = hasPermission(currentUser.role, 'ADD_CHANNEL_MEMBER');
-    const canEditGroup = hasPermission(currentUser.role, 'EDIT_CHANNEL');
     const canDeleteGroup = hasPermission(currentUser.role, 'DELETE_CHANNEL');
+    const canEditGroup = hasPermission(currentUser.role, 'EDIT_CHANNEL');
     const canRemoveMembers = hasPermission(currentUser.role, 'REMOVE_CHANNEL_MEMBER');
 
-    const canDeleteMessage = (message: Message) => message.user_id === currentUser.id;
+    // Document Permissions
+    const canCreateDC = hasPermission(currentUser.role, 'CREATE_DC');
+    const canCreateIC = hasPermission(currentUser.role, 'CREATE_IC');
+    const canCreateSalesInv = hasPermission(currentUser.role, 'CREATE_SALES_INVOICE');
+    const canCreatePurchaseInv = hasPermission(currentUser.role, 'CREATE_PURCHASE_INVOICE');
+    const canCreateExpense = hasPermission(currentUser.role, 'CREATE_SIMPLE_EXPENSE');
 
     const [currentStatus, setCurrentStatus] = useState(channel.status);
 
@@ -105,814 +109,735 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         setEditedGroupName(channel.name);
         setIsEditingGroupName(false);
         setCurrentStatus(channel.status);
-        setHasPerformedInitialScroll(false);
-        initialLastReadAtRef.current = channel.last_read_at;
     }, [channel.id]);
-
-    // Help show notification (Fixed for Mobile Support)
-    const showNotification = async (title: string, body: string) => {
-        if (!('Notification' in window) || Notification.permission !== 'granted') return;
-
-        // Try Service Worker first (Required for Mobile/PWA)
-        if ('serviceWorker' in navigator) {
-            const registration = await navigator.serviceWorker.ready;
-            if (registration) {
-                registration.showNotification(title, {
-                    body,
-                    icon: '/Kramiz%20app%20icon.png',
-                    badge: '/favicon.png',
-                    vibrate: [100, 50, 100],
-                    data: { url: window.location.href }
-                } as any);
-                return;
-            }
-        }
-
-        // Fallback or Desktop only
-        new Notification(title, {
-            body,
-            icon: '/Kramiz%20app%20icon.png',
-            badge: '/favicon.png'
-        });
-    };
-
-    // Mark as read when entering the room
-    useEffect(() => {
-        api.markChannelAsRead(currentUser, channel.id).then(() => {
-            queryClient.invalidateQueries({ queryKey: ['channels'] });
-        });
-    }, [channel.id, currentUser, queryClient]);
-
-    // Realtime Subscription
-    useEffect(() => {
-        const channelSubscription = supabase
-            .channel(`room:${channel.id}`)
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'messages',
-                filter: `channel_id=eq.${channel.id}`
-            }, (payload) => {
-                const newMsg = payload.new as Message;
-
-                // 1. Update the local cache
-                queryClient.setQueryData(['messages', channel.id], (old: Message[] | undefined) => {
-                    const current = old || [];
-                    
-                    // Prevent duplicates (Realtime sometimes sends what we just got via refetch)
-                    if (current.some(m => m.id === newMsg.id)) return current;
-
-                    // Match and replace optimistic message
-                    // (Optimistic messages have temporary IDs generated by Math.random().toString())
-                    const optimisticIndex = current.findIndex(m => 
-                        m.user_id === newMsg.user_id && 
-                        m.content === newMsg.content && 
-                        m.id.includes('.') // UUIDs don't have dots, Math.random().toString() does
-                    );
-
-                    if (optimisticIndex !== -1) {
-                        const updated = [...current];
-                        updated[optimisticIndex] = { ...newMsg, user: newMsg.user || currentUser };
-                        return updated;
-                    }
-
-                    return [...current, { ...newMsg, user: newMsg.user || currentUser }];
-                });
-
-                // 2. Play alert and show notification
-                if (newMsg.user_id !== currentUser.id) {
-                    playNotificationSound();
-                    triggerVibration();
-
-                    if (document.visibilityState === 'hidden') {
-                        showNotification(`New Message in ${channel.name}`, newMsg.content);
-                    } else {
-                        // If user is already in the room, mark as read immediately in DB
-                        api.markChannelAsRead(currentUser, channel.id);
-                        queryClient.invalidateQueries({ queryKey: ['channels'] });
-                        // Also proactively trigger a data fetch to make sure the sidebar count is 100% correct
-                        queryClient.refetchQueries({ queryKey: ['messages', channel.id] });
-                    }
-                }
-            })
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'messages',
-                filter: `channel_id=eq.${channel.id}`
-            }, (payload) => {
-                if (payload.eventType !== 'INSERT') {
-                    // For updates/deletes, force a clean refresh
-                    queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
-                }
-            })
-            .subscribe();
-
-        // Global check for notifications when this specific chat is NOT the only thing on screen
-        // or for general tab focus
-        return () => {
-            supabase.removeChannel(channelSubscription);
-        };
-    }, [channel.id, channel.name, currentUser.id, queryClient]);
-
-    // Mutations
-    const sendMessageMutation = useMutation({
-        mutationFn: ({ content, isSystem }: { content: string, isSystem?: boolean }) =>
-            api.sendMessage(currentUser, channel.id, content, isSystem),
-        // OPTIMISTIC UPDATE: Show message immediately
-        onMutate: async ({ content }) => {
-            await queryClient.cancelQueries({ queryKey: ['messages', channel.id] });
-            const previousMessages = queryClient.getQueryData<Message[]>(['messages', channel.id]);
-
-            const optimisticMsg: Message = {
-                id: Math.random().toString(),
-                channel_id: channel.id,
-                user_id: currentUser.id,
-                content: content,
-                is_system_update: false,
-                timestamp: new Date().toISOString(),
-                user: currentUser
-            } as any;
-
-            queryClient.setQueryData(['messages', channel.id], (old: Message[] | undefined) => [...(old || []), optimisticMsg]);
-
-            return { previousMessages };
-        },
-        onSuccess: (realMsg) => {
-            // DIRECT CACHE INJECTION:
-            // Swap the optimistic (Math.random) message for the real DB message immediately.
-            queryClient.setQueryData(['messages', channel.id], (old: Message[] | undefined) => {
-                if (!old) return [realMsg];
-                // Find and replace the optimistic one
-                const optimisticIndex = old.findIndex(m => 
-                    m.user_id === realMsg.user_id && 
-                    m.content === realMsg.content && 
-                    m.id.includes('.')
-                );
-                
-                if (optimisticIndex !== -1) {
-                    const updated = [...old];
-                    updated[optimisticIndex] = { ...realMsg, user: realMsg.user || currentUser };
-                    return updated;
-                }
-                
-                // If not found (maybe Realtime beat us to it), just ensure it's in the list
-                if (old.some(m => m.id === realMsg.id)) return old;
-                return [...old, { ...realMsg, user: realMsg.user || currentUser }];
-            });
-        },
-        onError: (err: any, variables, context: any) => {
-            if (context?.previousMessages) {
-                queryClient.setQueryData(['messages', channel.id], context.previousMessages);
-            }
-            alert("Failed to send: " + err.message);
-        },
-        onSettled: () => {
-            // ONLY invalidate the sidebar/channels to clear unread counts.
-            // Do NOT invalidate 'messages' because we handle that via Direct Injection and Realtime.
-            queryClient.invalidateQueries({ queryKey: ['channels'] });
-        }
-    });
-
-    const handleRefresh = () => {
-        queryClient.invalidateQueries();
-    };
-
-    const updateStatusMutation = useMutation({
-        mutationFn: (newStat: string) => api.updateChannelStatus(channel.id, newStat),
-        onSuccess: () => handleRefresh()
-    });
-
-    const addMembersMutation = useMutation({
-        mutationFn: (userIds: string[]) => Promise.all(userIds.map(uid => api.addChannelMember(currentUser, channel.id, uid))),
-        onSuccess: () => handleRefresh()
-    });
-
-    const editGroupMutation = useMutation({
-        mutationFn: (updates: Partial<Channel>) => api.updateChannel(currentUser, channel.id, updates),
-        onSuccess: () => {
-            handleRefresh();
-            setIsEditingGroupName(false);
-        }
-    });
-
-    const forwardMessageMutation = useMutation({
-        mutationFn: async (targetChannelId: string) => {
-            if (!forwardingMessage) return;
-            await api.sendMessage(currentUser, targetChannelId, forwardingMessage.content);
-        },
-        onSuccess: () => {
-            setForwardingMessage(null);
-            alert('Forwarded successfully!');
-        },
-        onError: (err: any) => alert('Failed to forward: ' + err.message)
-    });
-
-
-    const isOverdue = (date: string | undefined) => {
-        if (!date) return false;
-        const d = new Date(date);
-        const now = new Date();
-        now.setHours(0, 0, 0, 0);
-        d.setHours(0, 0, 0, 0);
-        return d < now;
-    };
-
-    const deleteGroupMutation = useMutation({
-        mutationFn: () => api.deleteChannel(currentUser, channel.id),
-        onSuccess: () => {
-            handleRefresh();
-            onBack();
-        }
-    });
-
-    const removeMemberMutation = useMutation({
-        mutationFn: (userId: string) => api.removeChannelMember(currentUser, channel.id, userId),
-        onSuccess: () => handleRefresh(),
-        onError: (err: any) => alert(err.message || "Failed to remove member")
-    });
-
-    const deleteMessageMutation = useMutation({
-        mutationFn: (messageId: string) => {
-            const msg = messages.find(m => m.id === messageId);
-            return api.editMessage(currentUser, messageId, `[DELETED] ${msg?.content || ''}`);
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
-            setDeletingMessageId(null);
-        },
-        onError: (err: any) => alert(err.message || "Failed to delete message")
-    });
 
     const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
         messagesEndRef.current?.scrollIntoView({ behavior });
     };
 
     useEffect(() => {
-        if (!loadingMessages && messages.length > 0 && !hasPerformedInitialScroll) {
-            // Find first unread message
+        if (!loading && messages.length > 0 && !hasPerformedInitialScroll) {
             const firstUnread = messages.find(m =>
-                initialLastReadAtRef.current &&
-                new Date(m.timestamp) > new Date(initialLastReadAtRef.current) &&
-                m.user_id !== currentUser.id // Optional: focus on messages from others
+                initialLastReadAt &&
+                new Date(m.timestamp) > new Date(initialLastReadAt) &&
+                m.user_id !== currentUser.id
             );
 
             if (firstUnread) {
-                // Wait a tiny bit for the DOM to be ready
                 setTimeout(() => {
                     const element = document.getElementById(`msg-${firstUnread.id}`);
-                    if (element) {
-                        element.scrollIntoView({ block: 'center', behavior: 'instant' });
-                    } else {
-                        scrollToBottom('instant');
-                    }
+                    if (element) element.scrollIntoView({ block: 'center', behavior: 'instant' });
+                    else scrollToBottom('instant');
                 }, 50);
             } else {
                 scrollToBottom('instant');
             }
             setHasPerformedInitialScroll(true);
-        } else if (hasPerformedInitialScroll && !loadingMessages) {
-            // After initial scroll, scroll to bottom on new messages
+        } else if (hasPerformedInitialScroll && !loading) {
             scrollToBottom('smooth');
         }
-    }, [messages, loadingMessages, hasPerformedInitialScroll, currentUser.id]);
+    }, [messages, loading, hasPerformedInitialScroll]);
 
-    const handleSend = async (e?: React.FormEvent | React.KeyboardEvent) => {
-        if (e) e.preventDefault();
+    const handleSend = (e: React.FormEvent) => {
+        e.preventDefault();
         if (!newMessage.trim()) return;
-        const msg = newMessage;
+        sendMessage(newMessage);
         setNewMessage('');
-        sendMessageMutation.mutate({ content: msg });
-        if (textareaRef.current) textareaRef.current.style.height = 'auto';
     };
 
-    const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const newStat = e.target.value;
         setCurrentStatus(newStat);
-        updateStatusMutation.mutate(newStat);
-        sendMessageMutation.mutate({ content: `Changed status to ${newStat}`, isSystem: true });
+        updateStatus(newStat);
     };
 
-    const handleAttachmentOption = (type: string) => {
-        if (type === 'Contact') {
-            sendMessageMutation.mutate({ content: "👤 [Shared Contact]" });
-            setShowAttachMenu(false);
-        } else {
-            (window as any).isKramizUploading = true; // Set flag IMMEDIATELY before picker opens
-            fileInputRef.current?.click();
-            setShowAttachMenu(false);
+    const { data: allChannels = [] } = useQuery({
+        queryKey: ['channels', currentUser.id],
+        queryFn: () => api.getAllChannels(currentUser),
+        enabled: !!forwardingMessage
+    });
 
-            // Safety timeout: if no file is selected within 60s, clear the flag
-            setTimeout(() => {
-                if (!(fileInputRef.current?.files?.length) && (window as any).isKramizUploading) {
-                    (window as any).isKramizUploading = false;
-                }
-            }, 60000);
+    const forwardMessageMutation = useMutation({
+        mutationFn: async ({ targetChannelIds, message }: { targetChannelIds: string[], message: Message }) => {
+            return Promise.all(targetChannelIds.map(tid => api.sendMessage(currentUser, tid, message.content)));
+        },
+        onSuccess: () => {
+            setForwardingMessage(null);
+            setSelectedTargetChannelIds(new Set());
+            alert('Forwarded successfully!');
+        },
+        onError: (err: any) => alert('Forward failed: ' + err.message)
+    });
+
+    const handleDeleteChannel = async () => {
+        if (!window.confirm("ARE YOU SURE? This will permanently delete the entire group, all messages, all specs, and all attached files. This cannot be undone.")) return;
+        if (!window.confirm("FINAL CONFIRMATION: Delete everything in this group?")) return;
+
+        try {
+            await api.deleteChannel(currentUser, channel.id);
+            queryClient.invalidateQueries({ queryKey: ['channels'] });
+            onBack();
+        } catch (err: any) {
+            alert("Failed to delete: " + err.message);
         }
     };
 
+    const handleShareNative = async (msg: Message) => {
+        setOpenDropdownId(null);
+        try {
+            const isImage = msg.content?.startsWith('[IMAGE]');
+            const isFile = msg.content?.startsWith('[FILE]');
+            
+            if (isImage || isFile) {
+                const parts = msg.content.replace(/\[IMAGE\]|\[FILE\]/, '').split('|');
+                const url = parts[0].trim();
+                const fileName = parts[1]?.trim() || (isImage ? 'photo.jpg' : 'document.pdf');
+                
+                // 1. Fetch the actual file first
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const file = new File([blob], fileName, { type: blob.type });
+
+                if (isNative) {
+                    // Native Capacitor Path
+                    const reader = new FileReader();
+                    reader.onloadend = async () => {
+                        const base64data = (reader.result as string).split(',')[1];
+                        await shareFile(fileName, base64data, isImage ? 'Share Photo' : 'Share Document');
+                    };
+                    reader.readAsDataURL(blob);
+                } else if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    // Modern Web Path (Mobile Browsers/PWA)
+                    await navigator.share({
+                        files: [file],
+                        title: isImage ? 'Photo from Kramiz' : 'Document from Kramiz',
+                    });
+                } else {
+                    // Fallback: Share URL (Database link exposed here, but this is the last resort)
+                    await navigator.share({
+                        title: isImage ? 'Photo from Kramiz' : 'Document from Kramiz',
+                        text: `Check out this ${isImage ? 'photo' : 'file'} from Kramiz`,
+                        url: url
+                    });
+                }
+            } else {
+                // Text message sharing
+                if (isNative) {
+                    await shareContent('Share Message', msg.content);
+                } else {
+                    await navigator.share({
+                        title: 'Message from Kramiz',
+                        text: msg.content
+                    });
+                }
+            }
+        } catch (e) { 
+            console.error('Share error', e); 
+            // Fallback to clipboard if sharing fails or is unsupported
+            navigator.clipboard.writeText(msg.content);
+            alert('Link copied to clipboard');
+        }
+    };
+
+    const handlePinToSpecs = async (msg: Message) => {
+        setOpenDropdownId(null);
+        try {
+            const isFile = msg.content.startsWith('[FILE]');
+            const isImage = msg.content.startsWith('[IMAGE]');
+            
+            if (isFile || isImage) {
+                const parts = msg.content.replace(/\[FILE\]|\[IMAGE\]/, '').split('|');
+                const url = parts[0].trim();
+                const fileName = parts[1]?.trim() || (isImage ? 'image.jpg' : 'file.dat');
+                await api.addFileToChannel(currentUser, channel.id, fileName, url);
+                alert('File added to Specs!');
+            } else {
+                await api.addSpecToChannel(currentUser, channel.id, msg.content);
+                alert('Pinned to Specs!');
+            }
+            
+            // Invalidate channels query to refresh SpecDrawer
+            queryClient.invalidateQueries({ queryKey: ['channels', currentUser.id] });
+        } catch (e) { alert('Failed to pin to specs'); }
+    };
     const [isUploading, setIsUploading] = useState(false);
 
-    // Voice Recording Logic
     const startRecording = async () => {
         try {
-            // Check if mediaDevices is supported
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 alert("Your browser does not support audio recording.");
                 return;
             }
-
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const recorder = new MediaRecorder(stream);
             setMediaRecorder(recorder);
             chunksRef.current = [];
-
-            recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) chunksRef.current.push(e.data);
-            };
-
+            recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
             recorder.onstop = async () => {
-                const isCancelled = wasCancelledRef.current;
-                
-                if (!isCancelled && chunksRef.current.length > 0) {
-                    const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
-                    await handleVoiceUpload(audioBlob);
+                const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+                if (chunksRef.current.length > 0) {
+                    setIsUploading(true);
+                    try {
+                        (window as any).isKramizUploading = true;
+                        const publicUrl = await api.uploadFile(new File([audioBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' }));
+                        sendMessage(`[AUDIO] ${publicUrl}`);
+                    } finally { setIsUploading(false); (window as any).isKramizUploading = false; }
                 }
-                
-                // Reset flag and cleanup
-                wasCancelledRef.current = false;
                 stream.getTracks().forEach(track => track.stop());
             };
-
-            wasCancelledRef.current = false;
             recorder.start();
             setIsRecording(true);
             setRecordingTime(0);
-            recordingTimerRef.current = setInterval(() => {
-                setRecordingTime(prev => prev + 1);
-            }, 1000);
-        } catch (err: any) {
-            console.error("Microphone Error:", err);
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                alert("Microphone access denied. Please enable microphone permissions in your browser settings to send voice notes.");
-            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                alert("No microphone detected. Please connect a microphone and try again.");
-            } else {
-                alert("Could not start recording: " + err.message);
-            }
-        }
+            recordingTimerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
+        } catch (err: any) { alert("Could not start recording: " + err.message); }
     };
 
-    const stopRecording = () => {
+    const stopRecording = (cancel = false) => {
         if (mediaRecorder && isRecording) {
+            if (cancel) chunksRef.current = [];
             mediaRecorder.stop();
             setIsRecording(false);
             clearInterval(recordingTimerRef.current);
-        }
-    };
-
-    const cancelRecording = () => {
-        if (mediaRecorder && isRecording) {
-            wasCancelledRef.current = true; // Mark as discarded
-            chunksRef.current = [];
-            mediaRecorder.stop();
-            setIsRecording(false);
-            clearInterval(recordingTimerRef.current);
-        }
-    };
-
-    const handleVoiceUpload = async (blob: Blob) => {
-        setIsUploading(true);
-        try {
-            (window as any).isKramizUploading = true;
-            const fileName = `voice_${Date.now()}.webm`;
-            const file = new File([blob], fileName, { type: 'audio/webm' });
-            const publicUrl = await api.uploadFile(file);
-            sendMessageMutation.mutate({ content: `[AUDIO] ${publicUrl}` });
-        } catch (err: any) {
-            alert("Voice note upload failed: " + err.message);
-        } finally {
-            setIsUploading(false);
-            (window as any).isKramizUploading = false;
-        }
-    };
-
-    const formatTime = (seconds: number) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const handleDownloadImage = async (url: string) => {
-        try {
-            const response = await fetch(url);
-            const blob = await response.blob();
-            const blobUrl = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = `kramiz_image_${Date.now()}.jpg`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(blobUrl);
-        } catch (err) {
-            console.error("Download failed:", err);
-            // Fallback: open in new tab
-            window.open(url, '_blank');
         }
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            const selectedFiles = Array.from(e.target.files);
             setIsUploading(true);
-
             try {
-                // Ensure flag is set during the async compression/upload phase
                 (window as any).isKramizUploading = true;
-                for (const file of selectedFiles) {
-                    // Compress if image
-                    const fileToUpload = await compressImage(file);
-
-                    const publicUrl = await api.uploadFile(fileToUpload as File);
-                    let msgContent = file.type.startsWith('image/') ? `[IMAGE] ${publicUrl} | ${file.name}` : `[FILE] ${publicUrl} | ${file.name}`;
-                    sendMessageMutation.mutate({ content: msgContent });
+                for (const file of Array.from(e.target.files)) {
+                    const compressed = await compressImage(file);
+                    const url = await api.uploadFile(compressed as File);
+                    const tag = file.type.startsWith('image/') ? '[IMAGE]' : '[FILE]';
+                    sendMessage(`${tag} ${url} | ${file.name}`);
                 }
-            } catch (err: any) {
-                console.error(err);
-                alert("Upload failed: " + err.message);
-            } finally {
-                setIsUploading(false);
-                (window as any).isKramizUploading = false;
-                if (fileInputRef.current) fileInputRef.current.value = '';
-            }
+            } finally { setIsUploading(false); (window as any).isKramizUploading = false; if (fileInputRef.current) fileInputRef.current.value = ''; }
         }
     };
-
-    const renderMessageContent = (content: string) => {
-        if (content.startsWith('[IMAGE]')) {
-            const parts = content.split('|');
-            const url = parts[0].replace('[IMAGE]', '').trim();
-            return (
-                <div className="mt-1">
-                    <img
-                        src={url}
-                        alt="Attachment"
-                        className="max-w-full rounded-lg max-h-60 object-cover border border-gray-200 cursor-pointer hover:opacity-95 transition-all"
-                        onClick={() => setSelectedImageUrl(url)}
-                    />
-                </div>
-            );
-        }
-        if (content.startsWith('[FILE]')) {
-            const parts = content.split('|');
-            const url = parts[0].replace('[FILE]', '').trim();
-            const name = parts[1] ? parts[1].trim() : 'Document';
-            return <div className="mt-1"><a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors group"><div className="h-10 w-10 bg-red-100 text-red-500 rounded flex items-center justify-center font-bold text-xs">FILE</div><div className="flex-1 min-w-0"><div className="text-sm font-medium text-gray-800 truncate">{name}</div><div className="text-[10px] text-gray-500 uppercase">Download</div></div></a></div>;
-        }
-        if (content.startsWith('[AUDIO]')) {
-            const url = content.replace('[AUDIO]', '').trim();
-            return (
-                <div className="mt-2 w-64 max-w-full">
-                    <audio src={url} controls className="w-full h-8" />
-                </div>
-            );
-        }
-        return <div className="text-gray-900 break-words whitespace-pre-wrap">{content}</div>;
-    }
 
     const handleAddMember = async () => {
         try {
             const team = await api.getTeamMembers(currentUser);
-            setTeamMembers(team);
+            setTeamMembersList(team);
             setSelectedUserIds(new Set());
             setShowAddMemberModal(true);
         } catch (err) { alert("Failed to load team members"); }
     };
 
-    const toggleMemberSelection = (userId: string) => {
-        const newSet = new Set(selectedUserIds);
-        if (newSet.has(userId)) newSet.delete(userId); else newSet.add(userId);
-        setSelectedUserIds(newSet);
+    const renderMessageContent = (content: string) => {
+        if (content.startsWith('[IMAGE]')) {
+            const url = content.split('|')[0].replace('[IMAGE]', '').trim();
+            return <img src={url} alt="Attachment" className="max-w-full rounded-lg max-h-60 object-cover border border-gray-200 cursor-pointer hover:opacity-95" onClick={() => setSelectedImageUrl(url)} />;
+        }
+        if (content.startsWith('[FILE]')) {
+            const parts = content.split('|');
+            const url = parts[0].replace('[FILE]', '').trim();
+            const name = parts[1]?.trim() || 'Document';
+            return <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100"><div className="h-10 w-10 bg-red-100 text-red-500 rounded flex items-center justify-center font-bold text-xs">FILE</div><div className="flex-1 min-w-0"><div className="text-sm font-medium text-gray-800 truncate">{name}</div><div className="text-[10px] text-gray-500">Download</div></div></a>;
+        }
+        if (content.startsWith('[AUDIO]')) {
+            return <audio src={content.replace('[AUDIO]', '').trim()} controls className="w-full h-8 mt-2" />;
+        }
+
+        // DOCUMENT CARDS
+        const isDC = content.startsWith('[DC]');
+        const isIC = content.startsWith('[IC]');
+        const isSI = content.startsWith('[SI]');
+        const isPI = content.startsWith('[PI]');
+        const isEX = content.startsWith('[EX]');
+
+        if (isDC || isIC || isSI || isPI || isEX) {
+            const parts = content.split('|');
+            const label = parts[0].replace(/\[DC\]|\[IC\]|\[SI\]|\[PI\]|\[EX\]/, '').trim();
+            const id = parts[1]?.trim() || '';
+            const type = isDC ? 'DC' : isIC ? 'IC' : isSI ? 'SI' : isPI ? 'PI' : 'EX';
+            const icon = isDC ? '🚚' : isIC ? '📥' : isSI ? '🧾' : isPI ? '💸' : '💰';
+            const typeLabel = isDC ? 'Delivery Plan' : isIC ? 'Inward Challan' : isSI ? 'Sales Invoice' : isPI ? 'Purchase Invoice' : 'Expense';
+            const colorClass = isDC ? 'bg-green-50 border-green-100 text-green-700' : 
+                              isIC ? 'bg-blue-50 border-blue-100 text-blue-700' :
+                              isSI ? 'bg-purple-50 border-purple-100 text-purple-700' :
+                              isPI ? 'bg-orange-50 border-orange-100 text-orange-700' :
+                              'bg-red-50 border-red-100 text-red-700';
+
+            return (
+                <div 
+                    onClick={() => handleViewDoc(type, id, label)}
+                    className={`flex items-center gap-4 p-4 rounded-2xl border cursor-pointer hover:shadow-md transition-all active:scale-95 mt-1 ${colorClass}`}
+                >
+                    <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-sm flex items-center justify-center text-2xl shadow-inner">
+                        {icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-0.5">{typeLabel}</p>
+                        <p className="text-sm font-bold truncate">{label}</p>
+                        <p className="text-[10px] font-medium opacity-50 mt-1">Tap to view details</p>
+                    </div>
+                </div>
+            );
+        }
+
+        return <div className="text-gray-900 break-words">{content}</div>;
     };
 
-    const commitAddMembers = async () => {
-        if (selectedUserIds.size === 0) { setShowAddMemberModal(false); return; }
-        setIsAdding(true);
-        addMembersMutation.mutate(Array.from(selectedUserIds), {
-            onSettled: () => setIsAdding(false)
-        });
-    };
-
-    const handleRemoveMember = async (userId: string, userName: string) => {
-        if (!confirm(`Remove ${userName}?`)) return;
-        removeMemberMutation.mutate(userId);
-    };
-
-    const confirmDeleteMessage = async () => {
-        if (!deletingMessageId) return;
-        deleteMessageMutation.mutate(deletingMessageId);
-    };
-
-    const handleSaveGroupName = () => {
-        if (!editedGroupName.trim()) return;
-        editGroupMutation.mutate({ name: editedGroupName });
-    };
-
-    const handleDeleteGroup = () => {
-        if (!confirm(`Delete "${channel.name}"?`)) return;
-        deleteGroupMutation.mutate();
-    };
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+        }
+    }, [newMessage]);
 
     return (
         <div className="flex h-full w-full relative">
             <div className="flex flex-col h-full bg-[#efeae2] relative flex-1">
-                {/* Header */}
                 <div className="bg-[#008069] text-white px-4 py-3 flex items-center shadow-md z-30 justify-between safe-pt">
                     <div className="flex items-center flex-1 min-w-0">
                         <button onClick={onBack} className="mr-3 md:hidden"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
                         <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-12"><h2 className="font-bold text-lg truncate">{channel.name}</h2><select id="tour-status-dropdown" value={currentStatus} onChange={handleStatusChange} className={`text-[12px] px-2 py-0.75 rounded-full border-none focus:ring-0 cursor-pointer font-bold ${currentStatus === 'COMPLETED' ? 'bg-green-100 text-green-800' : currentStatus === 'IN_PROGRESS' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}><option value="PENDING">PENDING</option><option value="IN_PROGRESS">IN PROGRESS</option><option value="COMPLETED">COMPLETED</option></select></div>
-                            <p className="text-xs text-green-100 truncate">
-                                {po.order_number} • {po.style_number}
-                                 {channel.due_date && (
-                                    <span className={`ml-3 px-2 py-0.5 rounded-full font-normal text-[12px] uppercase tracking-tighter ${isOverdue(channel.due_date) ? 'bg-red-500 text-white' : 'bg-white/20 text-white border border-white/30'}`}>
-                                        Due: {new Date(channel.due_date).toLocaleDateString([], { day: '2-digit', month: 'short' })}
-                                    </span>
-                                )}
-                            </p>
+                            <div className="flex items-center gap-2">
+                                <h2 className="font-bold text-lg truncate text-white">{channel.name}</h2>
+                                <select 
+                                    value={currentStatus} 
+                                    onChange={handleStatusChange} 
+                                    className={`text-[10px] px-2 py-1 rounded-full border-none focus:ring-0 cursor-pointer font-black ml-3 transition-all uppercase tracking-widest shadow-sm
+                                        ${(currentStatus || '').toUpperCase() === 'PENDING' ? 'bg-[#FFD700] text-[#4A3C00]' : 
+                                          (currentStatus || '').toUpperCase() === 'IN_PROGRESS' ? 'bg-[#25D366] text-white' : 
+                                          'bg-[#94A3B8] text-white'}`}
+                                >
+                                    <option value="PENDING" className="text-gray-900 bg-white">PENDING</option>
+                                    <option value="IN_PROGRESS" className="text-gray-900 bg-white">ACTIVE</option>
+                                    <option value="COMPLETED" className="text-gray-900 bg-white">COMPLETED</option>
+                                </select>
+                            </div>
+                            <p className="text-xs text-green-100 truncate">{order.order_number} • {order.style_number}</p>
                         </div>
                     </div>
-                    <button id="tour-group-info-btn" onClick={() => setShowGroupInfo(true)} className="hover:bg-white/10 p-2 rounded-full transition-colors text-white">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                    </button>
+                    <div className="flex items-center gap-1">
+                        <button onClick={() => setShowGroupInfo(true)} className="p-2 hover:bg-white/10 rounded-full text-white"><svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></button>
+                    </div>
                 </div>
 
-                <SpecDrawer channel={channel} currentUser={currentUser} />
+                <SpecDrawer 
+                    channel={channel} 
+                    currentUser={currentUser} 
+                    onAddTaskClick={() => setShowTaskForm(true)}
+                />
 
-                {/* Messages Area */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-2 whatsapp-bg bg-cover">
-                    {loading ? (<div className="text-center py-4 text-gray-500">Loading messages...</div>) : (
-                        messages.map((msg) => {
-                            const isMe = msg.user_id === currentUser.id;
-                            const isSystem = msg.is_system_update;
-                            const isDeleted = msg.content?.startsWith('[DELETED]');
-                            const canDelete = canDeleteMessage(msg) && !isDeleted;
-                            const showDropdown = openDropdownId === msg.id;
+                {/* Selection Action Bar */}
+                {selectionMode && (
+                    <div className="absolute top-0 left-0 right-0 h-[60px] bg-white border-b border-gray-200 z-50 flex items-center justify-between px-4 animate-in slide-in-from-top duration-300">
+                        <div className="flex items-center gap-4">
+                            <button onClick={() => { setSelectionMode(false); setSelectedMessageIds(new Set()); }} className="p-2 text-gray-500 hover:text-gray-700">✕</button>
+                            <span className="font-bold text-gray-800">{selectedMessageIds.size} Selected</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={() => {
+                                    const combinedContent = Array.from(selectedMessageIds)
+                                        .map(id => messages.find(m => m.id === id))
+                                        .filter(Boolean)
+                                        .map(m => m!.content)
+                                        .join('\n\n');
+                                    setForwardingMessage({ 
+                                        id: 'combined', 
+                                        channel_id: channel.id, 
+                                        user_id: currentUser.id, 
+                                        content: combinedContent, 
+                                        timestamp: new Date().toISOString() 
+                                    });
+                                    setSelectionMode(false); 
+                                    setSelectedMessageIds(new Set());
+                                }}
+                                disabled={selectedMessageIds.size === 0}
+                                className="flex flex-col items-center gap-0.5 px-3 py-1 text-[#008069] disabled:opacity-30"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="15 17 20 12 15 7" />
+                                    <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
+                                </svg>
+                                <span className="text-[10px] font-black uppercase">Forward</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
 
-                            const handlePinSpec = async () => {
-                                setOpenDropdownId(null);
-                                try {
-                                    await api.addSpecToChannel(currentUser, channel.id, msg.content);
-                                    queryClient.invalidateQueries({ queryKey: ['specs', channel.id] });
-                                    alert('Pinned to Specs!');
-                                } catch (e) { alert('Failed to pin to specs'); }
-                            };
+                <div className="flex-1 overflow-y-auto p-4 space-y-2 whatsapp-bg">
+                    {messages.map(msg => {
+                        const isMe = msg.user_id === currentUser.id;
+                        const isDeleted = msg.content?.startsWith('[DELETED]');
+                        const isSelected = selectedMessageIds.has(msg.id);
 
-                            const handleShareMessage = async () => {
-                                setOpenDropdownId(null);
-                                try {
-                                    if (msg.content?.startsWith('[FILE]')) {
-                                        const parts = msg.content.split('|');
-                                        const url = parts[0].replace('[FILE]', '').trim();
-                                        await Share.share({ url, dialogTitle: 'Share Link' });
-                                    } else if (msg.content?.startsWith('[AUDIO]')) {
-                                        const url = msg.content.replace('[AUDIO]', '').trim();
-                                        await Share.share({ url, dialogTitle: 'Share Link' });
-                                    } else {
-                                        await Share.share({ text: msg.content, dialogTitle: 'Share Message' });
-                                    }
-                                } catch(e) { console.error('Share error', e); }
-                            };
-
-                            if (isSystem) return <div key={msg.id} className="flex justify-center my-3"><span className="bg-[#d5f4e6] text-gray-700 text-xs px-4 py-1.5 rounded-full shadow-sm">{msg.content}</span></div>;
-                            return (
-                                <div key={msg.id} id={`msg-${msg.id}`} className={`flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'} max-w-full relative`}>
-                                    <div className={`max-w-[80%] rounded-xl px-3 py-1.5 shadow-sm text-sm relative group ${isMe ? 'bg-[#d9fdd3] rounded-tr-none' : 'bg-white rounded-tl-none'}`}>
-                                        
-                                        {!isDeleted && (
-                                            <button 
-                                                onClick={(e) => {
-                                                    if (openDropdownId === msg.id) {
-                                                        setOpenDropdownId(null);
-                                                    } else {
-                                                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                                        const spaceBelow = window.innerHeight - rect.bottom;
-                                                        setOpenUpwards(spaceBelow < 200);
-                                                        setOpenDropdownId(msg.id);
-                                                    }
-                                                }}
-                                                className={`absolute top-1 right-1 p-1 rounded-full transition-colors z-10 bg-white/50 backdrop-blur-sm shadow-sm md:opacity-0 group-hover:opacity-100 ${showDropdown ? 'opacity-100 text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
-                                            </button>
-                                        )}
-
-                                        {showDropdown && !isDeleted && (
-                                            <div className={`absolute ${openUpwards ? 'bottom-8' : 'top-8'} right-2 bg-white shadow-xl rounded-lg py-1 w-44 z-20 border border-gray-100 animate-in fade-in zoom-in-95 duration-100`}>
-                                                <button onClick={handlePinSpec} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">📌 Pin to Specs</button>
-                                                <button onClick={() => { setOpenDropdownId(null); setForwardingMessage(msg); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">🔄 Forward</button>
-                                                <button onClick={handleShareMessage} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">📤 Share Native</button>
-                                                {isMe && canDelete && (
-                                                    <button onClick={() => { setOpenDropdownId(null); setDeletingMessageId(msg.id); }} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-gray-100">🗑️ Delete</button>
-                                                )}
-                                            </div>
-                                        )}
-                                        
-                                        {!isMe && (
-                                            <div className="mb-1 flex items-center gap-2">
-                                                <span className="text-[14px] font-bold text-[#008069] leading-tight">{msg.user?.name}</span>
-                                                <span className="text-[10px] font-black bg-gray-200 text-gray-500 px-1 py-0 rounded border border-gray-300 uppercase tracking-tighter">
-                                                    {msg.user?.role.replace('_', ' ')}
-                                                </span>
-                                            </div>
-                                        )}
-                                        <div className="pr-12 pb-1">{isDeleted ? <div className="text-gray-400 italic text-[11px]">Deleted</div> : renderMessageContent(msg.content)}</div>
-                                        <div className="text-[9px] text-gray-400 absolute bottom-1 right-2">
-                                            {new Date(msg.timestamp).toLocaleDateString([], { day: '2-digit', month: 'short' })} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </div>
+                        if (msg.is_system_update) return <div key={msg.id} className="flex justify-center my-3"><span className="bg-[#d5f4e6] text-gray-700 text-xs px-4 py-1.5 rounded-full">{msg.content}</span></div>;
+                        
+                        return (
+                            <div key={msg.id} id={`msg-${msg.id}`} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} group max-w-full relative`}>
+                                {/* Multi-select Checkbox */}
+                                {selectionMode && !isDeleted && (
+                                    <div className={`mr-2 mb-2 transition-all ${isMe ? 'order-first' : ''}`}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={isSelected}
+                                            onChange={() => {
+                                                const next = new Set(selectedMessageIds);
+                                                if (next.has(msg.id)) next.delete(msg.id); else next.add(msg.id);
+                                                setSelectedMessageIds(next);
+                                            }}
+                                            className="w-5 h-5 rounded-full border-gray-300 text-[#008069] focus:ring-[#008069]"
+                                        />
                                     </div>
+                                )}
+
+                                <div 
+                                    onContextMenu={(e) => {
+                                        if (selectionMode) return;
+                                        e.preventDefault();
+                                        setSelectionMode(true);
+                                        setSelectedMessageIds(new Set([msg.id]));
+                                    }}
+                                    className={`max-w-[85%] rounded-xl px-3 py-1.5 shadow-sm text-sm relative transition-all ${isSelected ? 'ring-2 ring-[#008069] scale-[0.98]' : ''} ${isMe ? 'bg-[#d9fdd3] rounded-tr-none' : 'bg-white rounded-tl-none'}`}
+                                >
+                                    {!isMe && <div className="mb-1 text-[14px] font-bold text-[#008069]">{msg.user?.name}</div>}
+                                    
+                                    {!isDeleted && !selectionMode && (
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (openDropdownId === msg.id) {
+                                                    setOpenDropdownId(null);
+                                                } else {
+                                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                                    const spaceBelow = window.innerHeight - rect.bottom;
+                                                    setOpenUpwards(spaceBelow < 200);
+                                                    setOpenDropdownId(msg.id);
+                                                }
+                                            }}
+                                            className={`absolute top-1 right-1 p-1 rounded-full transition-colors z-10 bg-white/70 backdrop-blur-sm shadow-sm md:opacity-0 group-hover:opacity-100 ${openDropdownId === msg.id ? 'opacity-100 text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
+                                        >
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
+                                        </button>
+                                    )}
+
+                                    {openDropdownId === msg.id && !isDeleted && !selectionMode && (
+                                        <div className={`absolute ${openUpwards ? 'bottom-8' : 'top-8'} right-0 bg-white shadow-2xl rounded-2xl py-1.5 w-52 z-20 border border-gray-100 animate-in fade-in zoom-in-95 duration-100`}>
+                                            <button 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(msg.content.replace(/\[IMAGE\]|\[FILE\]|\[AUDIO\]/, '').split('|')[0].trim());
+                                                    setOpenDropdownId(null);
+                                                }} 
+                                                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+                                            >
+                                                <span className="text-base">📋</span> Copy Text
+                                            </button>
+                                            <button onClick={() => { setSelectionMode(true); setSelectedMessageIds(new Set([msg.id])); setOpenDropdownId(null); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                                                <span className="text-base">✅</span> Select Multiple
+                                            </button>
+                                            <button onClick={() => handlePinToSpecs(msg)} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                                                <span className="text-base">📌</span> Pin to Specs
+                                            </button>
+                                            <button onClick={() => { setOpenDropdownId(null); setForwardingMessage(msg); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                                                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="15 17 20 12 15 7" />
+                                                    <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
+                                                </svg>
+                                                Forward
+                                            </button>
+                                            <button onClick={() => handleShareNative(msg)} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                                                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <circle cx="18" cy="5" r="3" />
+                                                    <circle cx="6" cy="12" r="3" />
+                                                    <circle cx="18" cy="19" r="3" />
+                                                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                                                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                                                </svg>
+                                                Share
+                                            </button>
+                                            {isMe && (
+                                                <button 
+                                                    onClick={() => { setOpenDropdownId(null); setDeletingMessageId(msg.id); }} 
+                                                    className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 border-t border-gray-50 mt-1 transition-colors"
+                                                >
+                                                    Delete
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div className="pr-10 pb-1">{isDeleted ? <span className="text-gray-400 italic">Deleted</span> : renderMessageContent(msg.content)}</div>
+                                    <div className="text-[9px] text-gray-400 absolute bottom-1 right-2">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                 </div>
-                            );
-                        })
-                    )}
+                            </div>
+                        );
+                    })}
                     <div ref={messagesEndRef} />
                 </div>
 
-                <div className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-2 relative safe-pb">
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileUpload}
-                        className="hidden"
-                        multiple
-                    />
-                    {!isRecording ? (
-                        <>
-                            <button id="tour-attach-btn" type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors flex-shrink-0">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                <div className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-2 relative safe-pb-deep border-t border-gray-200">
+                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" multiple />
+                    <input type="file" ref={photoInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" multiple />
+                    <button type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-[#008069] hover:bg-white rounded-full transition-all">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    </button>
+                    {showAttachMenu && (
+                        <div className="absolute bottom-16 left-4 bg-white shadow-2xl rounded-2xl p-2 z-50 border border-gray-100 animate-in slide-in-from-bottom-2 duration-200 w-64">
+                            <button onClick={() => { photoInputRef.current?.click(); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors border-b border-gray-50">
+                                <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Photos</span><span className="text-[10px] text-gray-400">Camera & Gallery</span></div>
                             </button>
 
-                            {showAttachMenu && (
-                                <div className="absolute bottom-14 left-4 bg-white shadow-2xl rounded-2xl p-1 w-52 z-50 border border-gray-100 overflow-hidden animate-in slide-in-from-bottom-2 duration-200">
-                                    <button
-                                        type="button"
-                                        disabled={isUploading}
-                                        onClick={() => handleAttachmentOption('All')}
-                                        className="w-full flex items-center gap-3 p-3 hover:bg-green-50 text-left transition-colors disabled:opacity-50"
-                                    >
-                                        <div className="h-10 w-10 rounded-xl bg-green-100 text-[#008069] flex items-center justify-center text-xl">
-                                            {isUploading ? <div className="w-5 h-5 border-2 border-[#008069] border-t-transparent animate-spin rounded-full"></div> : '📁'}
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-xs font-black text-gray-800 tracking-tight">Gallery & Files</span>
-                                            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Photos / Tech Packs</span>
-                                        </div>
-                                    </button>
-                                </div>
+                            <button onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors border-b border-gray-50">
+                                <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Documents</span><span className="text-[10px] text-gray-400">PDFs, Docs, etc.</span></div>
+                            </button>
+
+                            {canCreateDC && (
+                                <button onClick={() => { setShowDCForm(true); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors">
+                                    <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Delivery Challan</span><span className="text-[10px] text-gray-400">Create Outward DC</span></div>
+                                </button>
                             )}
 
-                            <textarea
-                                id="tour-chat-input"
-                                ref={textareaRef}
-                                value={newMessage}
-                                onChange={(e) => setNewMessage(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey && !isNative) {
-                                        // On Desktop: Enter sends, Shift+Enter new line
-                                        e.preventDefault();
-                                        handleSend(e);
-                                    }
-                                    // On Mobile: Enter is handled by keyboard (usually newline in textarea)
-                                }}
-                                placeholder="Type a message..."
-                                className="flex-1 py-2.5 px-4 rounded-2xl border-none focus:ring-0 text-sm shadow-sm resize-none overflow-y-auto max-h-[120px] min-h-[40px] bg-white leading-relaxed"
-                                rows={1}
-                            />
-
-                            {newMessage.trim() || isUploading ? (
-                                <button type="button" onClick={handleSend} disabled={!newMessage.trim() || isUploading} className={`p-3 rounded-full shadow-md transition-all active:scale-95 ${newMessage.trim() ? 'bg-[#008069] text-white' : 'bg-gray-300 text-gray-500'}`}>
-                                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
-                                </button>
-                            ) : (
-                                <button type="button" onClick={startRecording} className="p-3 bg-[#008069] text-white rounded-full shadow-md transition-all active:scale-95 hover:bg-[#006a57]">
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
-                                    </svg>
+                            {canCreateIC && (
+                                <button onClick={() => { setShowICForm(true); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors">
+                                    <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Inward Challan</span><span className="text-[10px] text-gray-400">Record goods receipt</span></div>
                                 </button>
                             )}
-                        </>
-                    ) : (
-                        <div className="flex-1 flex items-center justify-between bg-white rounded-full px-4 py-2 shadow-sm animate-in slide-in-from-right-2">
-                            <div className="flex items-center gap-3">
-                                <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>
-                                <span className="text-sm font-medium text-gray-700">{formatTime(recordingTime)}</span>
-                                <span className="text-xs text-gray-400 font-bold uppercase tracking-widest ml-2">Recording...</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button type="button" onClick={cancelRecording} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors font-bold text-xs uppercase">Cancel</button>
-                                <button type="button" onClick={stopRecording} className="p-2.5 bg-[#008069] text-white rounded-full shadow-md active:scale-95 transition-all">
-                                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+
+                            {canCreateSalesInv && (
+                                <button onClick={() => { setShowSalesInvForm(true); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors">
+                                    <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Sales Invoice</span><span className="text-[10px] text-gray-400">Bill your partner</span></div>
                                 </button>
-                            </div>
+                            )}
+
+                            {canCreatePurchaseInv && (
+                                <button onClick={() => { setShowPurchaseInvForm(true); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors">
+                                    <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Purchase Invoice</span><span className="text-[10px] text-gray-400">Record bill from partner</span></div>
+                                </button>
+                            )}
+
+                            {canCreateExpense && (
+                                <button onClick={() => { setShowExpenseForm(true); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors">
+                                    <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Simple Expense</span><span className="text-[10px] text-gray-400">Quick spend record</span></div>
+                                </button>
+                            )}
+
+                            <button onClick={() => { setShowTaskForm(true); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors">
+                                <div className="flex flex-col"><span className="text-sm font-bold text-gray-700 text-[#008069]">New Task</span><span className="text-[10px] text-gray-400">Assign work to team</span></div>
+                            </button>
                         </div>
                     )}
+                    
+                    <div className="flex-1 flex items-end gap-2 bg-white rounded-[14px] px-4 py-1 shadow-sm border border-gray-100 overflow-hidden">
+                        <textarea
+                            ref={textareaRef}
+                            value={newMessage}
+                            onChange={e => setNewMessage(e.target.value)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSend(e);
+                                }
+                            }}
+                            placeholder="Type a message..."
+                            className="flex-1 py-1.5 bg-transparent border-none focus:ring-0 focus:outline-none text-[15px] resize-none minimal-scrollbar"
+                            style={{ minHeight: '24px', maxHeight: '150px', lineHeight: '24px' }}
+                            rows={1}
+                        />
+                    </div>
+
+                    {isRecording && (
+                        <button onClick={() => stopRecording(true)} className="w-10 h-10 flex items-center justify-center bg-gray-100 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
+                            ✕
+                        </button>
+                    )}
+
+                    <button 
+                        onClick={isRecording ? () => stopRecording(false) : (newMessage.trim() ? handleSend : startRecording)} 
+                        className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full text-white shadow-sm transition-all active:scale-95 ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-[#008069]'}`}
+                    >
+                        {isRecording ? (
+                            <span className="font-bold text-[10px]">{Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}</span>
+                        ) : newMessage.trim() ? (
+                            <svg className="w-5 h-5 rotate-90" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
+                        ) : (
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" /></svg>
+                        )}
+                    </button>
                 </div>
             </div>
 
-            {/* Group Info */}
             {showGroupInfo && (
-                <div className="w-80 bg-white border-l border-gray-200 h-full overflow-y-auto absolute right-0 top-0 z-40 shadow-xl md:static">
-                    <div className="bg-[#f0f2f5] p-4 flex items-center gap-3 border-b border-gray-200"><button onClick={() => setShowGroupInfo(false)} className="text-gray-600"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button><h3 className="font-semibold text-gray-800">Group Info</h3></div>
-                    <div className="p-8 flex flex-col items-center border-b border-gray-100">
-                        <div className="flex items-center gap-2 mb-1">
-                            {isEditingGroupName ? (
-                                <div className="flex items-center gap-2"><input type="text" value={editedGroupName} onChange={(e) => setEditedGroupName(e.target.value)} className="text-xl font-black border-b-2 border-[#008069] focus:outline-none w-full max-w-[200px]" autoFocus onKeyDown={(e) => e.key === 'Enter' && handleSaveGroupName()} /><button onClick={handleSaveGroupName} className="text-green-600">✓</button></div>
-                            ) : (
-                                <><h2 className="text-2xl font-black text-gray-900">{channel.name}</h2>{canEditGroup && <button id="tour-edit-group-btn" onClick={() => setIsEditingGroupName(true)} className="p-2 text-gray-400 hover:text-[#008069]">✎</button>}</>
-                            )}
-                        </div>
-                        <p className="text-sm font-medium text-gray-500">{po.order_number}</p>
-
-                        <p className="text-sm font-medium text-gray-500">{po.order_number}</p>
+                <div className="w-80 bg-white border-l h-full absolute right-0 top-0 z-40 shadow-xl md:static">
+                    <div className="bg-[#f0f2f5] p-4 flex items-center gap-3 border-b"><button onClick={() => setShowGroupInfo(false)}>✕</button><h3 className="font-semibold">Group Info</h3></div>
+                    <div className="p-8 text-center border-b">
+                        <h2 className="text-2xl font-black">{channel.name}</h2>
+                        <p className="text-sm text-gray-500">{order.order_number}</p>
                     </div>
-                    <div id="tour-group-participants" className="p-6 space-y-8">
-                        <div>
-                            <div className="flex justify-between items-center mb-4"><h4 className="text-xs font-bold text-gray-400 uppercase">Participants</h4>{canAddMembers && <button id="tour-add-member-btn" onClick={handleAddMember} className="text-[10px] font-bold text-[#008069]">+ Add Member</button>}</div>
-                            <div className="space-y-3">{members.map(m => (<div key={m.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-50 group"><div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold">{m.name[0]}</div><div className="flex-1 min-w-0"><p className="text-sm font-bold text-gray-800 truncate">{m.name}{m.id === currentUser.id && ' (You)'}</p><p className="text-[10px] text-gray-500 uppercase tracking-widest">{m.company?.name || '...'}</p></div>{canRemoveMembers && m.id !== currentUser.id && m.role !== 'ADMIN' && <button onClick={() => handleRemoveMember(m.id, m.name)} className="opacity-0 group-hover:opacity-100 text-red-400">✕</button>}</div>))}</div>
-                        </div>
-                        {canDeleteGroup && <div className="pt-8 border-t"><button id="tour-delete-group-btn" onClick={handleDeleteGroup} className="w-full py-3 border-2 border-dashed border-red-100 text-red-500 text-xs font-bold uppercase rounded-xl hover:bg-red-50">Delete Group</button></div>}
+                    <div className="p-6">
+                        <div className="flex justify-between items-center mb-4"><h4 className="text-xs font-bold text-gray-400 uppercase">Participants</h4>{canAddMembers && <button onClick={handleAddMember} className="text-xs text-[#008069] font-bold">+ Add</button>}</div>
+                        <div className="space-y-3 mb-8">{members.map(m => (<div key={m.id} className="flex items-center gap-3"><div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center font-bold">{m.name[0]}</div><div className="flex-1 min-w-0"><p className="text-sm font-bold truncate">{m.name}</p></div></div>))}</div>
+                        
+                        {canDeleteGroup && (
+                            <div className="pt-6 border-t border-gray-100">
+                                <button 
+                                    onClick={handleDeleteChannel}
+                                    className="w-full flex items-center justify-center gap-2 py-3 text-red-600 hover:bg-red-50 rounded-xl transition-all font-bold border border-red-100"
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Delete Group
+                                </button>
+                                <p className="text-[10px] text-gray-400 text-center mt-2">All files, specs, and messages will be permanently removed.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
 
-            <Modal isOpen={deletingMessageId !== null} onClose={() => setDeletingMessageId(null)} title="Delete Message?"><div className="space-y-4"><p className="text-sm">Delete this message? This action is permanent.</p><div className="flex gap-3 justify-end"><button onClick={() => setDeletingMessageId(null)} className="px-4 py-2 bg-gray-200 rounded">Cancel</button><button onClick={confirmDeleteMessage} className="px-4 py-2 bg-red-600 text-white rounded">Delete</button></div></div></Modal>
-            
-            <Modal isOpen={forwardingMessage !== null} onClose={() => setForwardingMessage(null)} title="Forward To...">
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                    {siblingChannels.length === 0 ? (
-                        <p className="text-sm text-gray-500 py-4 text-center">No other groups in this Purchase Order to forward to.</p>
-                    ) : (
-                        siblingChannels.map(ch => (
-                            <button 
-                                key={ch.id} 
-                                onClick={() => forwardMessageMutation.mutate(ch.id)}
-                                disabled={forwardMessageMutation.isPending}
-                                className="w-full text-left p-4 border border-gray-100 rounded-xl hover:bg-green-50 focus:bg-green-50 transition-colors flex items-center justify-between group"
-                            >
-                                <div>
-                                    <p className="font-bold text-gray-800">{ch.name}</p>
-                                    <p className="text-[10px] text-gray-500 uppercase">{po.order_number}</p>
-                                </div>
-                                <span className="text-green-600 opacity-0 group-hover:opacity-100 font-black">→</span>
-                            </button>
-                        ))
-                    )}
+            <Modal isOpen={deletingMessageId !== null} onClose={() => setDeletingMessageId(null)} title="Delete Message?">
+                <p className="text-sm text-gray-500 mb-6 font-medium">Are you sure you want to delete this message? This action cannot be undone.</p>
+                <div className="flex gap-3 justify-end">
+                    <button onClick={() => setDeletingMessageId(null)} className="px-6 py-2.5 bg-gray-50 text-gray-400 font-bold rounded-xl hover:bg-gray-100 transition-all">Cancel</button>
+                    <button onClick={() => { deleteMessage(deletingMessageId!); setDeletingMessageId(null); }} className="px-6 py-2.5 bg-red-600 text-white font-bold rounded-xl shadow-lg hover:bg-red-700 transition-all">Delete</button>
                 </div>
             </Modal>
-            
-            <Modal isOpen={showAddMemberModal} onClose={() => setShowAddMemberModal(false)} title="Add Members" footer={<button onClick={commitAddMembers} disabled={selectedUserIds.size === 0 || isAdding} className={`px-4 py-2 rounded ${selectedUserIds.size > 0 ? 'bg-[#008069] text-white' : 'bg-gray-300'}`}>{isAdding ? 'Adding...' : 'Add Selected'}</button>}>
-                <div className="max-h-80 overflow-y-auto space-y-2">{teamMembers.map(user => { const added = members.some(m => m.id === user.id); return (<div key={user.id} className={`flex items-center justify-between p-3 border rounded ${added ? 'bg-gray-50 opacity-60' : 'bg-white'}`}><div className="flex items-center gap-3"><div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center font-bold">{user.name[0]}</div><div><p className="text-sm font-medium">{user.name}</p><p className="text-xs text-gray-500">{user.role}</p></div></div>{added ? <span className="text-xs text-green-600 font-bold">Added</span> : <input type="checkbox" checked={selectedUserIds.has(user.id)} onChange={() => toggleMemberSelection(user.id)} />}</div>); })}</div>
-            </Modal>
-
-            {/* Image Preview Modal */}
-            {/* Premium Full-Screen Image Preview */}
-            {selectedImageUrl && (
-                <div
-                    className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300"
-                    onClick={() => setSelectedImageUrl(null)}
+            <Modal isOpen={showAddMemberModal} onClose={() => setShowAddMemberModal(false)} title="Add Members">
+                <div className="max-h-60 overflow-y-auto space-y-2 minimal-scrollbar pr-1">
+                    {teamMembersList.map(u => { 
+                        const added = members.some(m => m.id === u.id); 
+                        return (
+                            <div key={u.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-2xl bg-gray-50/50">
+                                <span className="text-sm font-bold text-gray-700">{u.name}</span>
+                                {added ? (
+                                    <span className="text-[10px] bg-green-100 text-[#008069] px-2 py-0.5 rounded-full font-black uppercase tracking-tight">Active</span>
+                                ) : (
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selectedUserIds.has(u.id)} 
+                                        onChange={() => { 
+                                            const next = new Set(selectedUserIds); 
+                                            if (next.has(u.id)) next.delete(u.id); else next.add(u.id); 
+                                            setSelectedUserIds(next); 
+                                        }} 
+                                        className="w-5 h-5 rounded-lg border-gray-200 text-[#008069] focus:ring-[#008069]"
+                                    />
+                                )}
+                            </div>
+                        ); 
+                    })}
+                </div>
+                <button 
+                    onClick={() => { addMembers(Array.from(selectedUserIds)); setShowAddMemberModal(false); }} 
+                    disabled={selectedUserIds.size === 0}
+                    className="w-full mt-6 py-3 bg-[#008069] text-white rounded-2xl font-bold shadow-lg hover:bg-[#006a57] disabled:opacity-40 transition-all"
                 >
-                    {/* Top Controls */}
-                    <div className="absolute top-6 right-6 flex items-center gap-3 z-[110]">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); handleDownloadImage(selectedImageUrl); }}
-                            className="p-2.5 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all border border-white/20 flex items-center justify-center"
-                            title="Download Image"
-                        >
-                            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                        </button>
-                        <button
-                            onClick={() => setSelectedImageUrl(null)}
-                            className="p-2.5 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all border border-white/20 flex items-center justify-center"
-                            title="Close"
-                        >
-                            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
+                    Add Selected Members
+                </button>
+            </Modal>
+            {/* Forwarding Modal (using unified popup) */}
+            {forwardingMessage && (
+                <KramizSharePopup
+                    currentUser={currentUser}
+                    content={{
+                        type: forwardingMessage.content.startsWith('[FILE]') || forwardingMessage.content.startsWith('[IMAGE]') ? 'file' : 'text',
+                        text: forwardingMessage.content,
+                        fileUrl: forwardingMessage.content.split('|')[0].replace(/\[IMAGE\]|\[FILE\]/, '').trim(),
+                        fileName: forwardingMessage.content.split('|')[1]?.trim() || 'Forwarded File'
+                    }}
+                    onClose={() => setForwardingMessage(null)}
+                    onSuccess={() => {
+                        queryClient.invalidateQueries({ queryKey: ['channels'] });
+                    }}
+                />
+            )}
 
-                    {/* Image Container */}
-                    <div className="relative w-full h-full p-4 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-                        <img
-                            src={selectedImageUrl}
-                            alt="Full Screen Preview"
-                            className="max-w-full max-h-full object-contain shadow-2xl rounded-sm animate-in zoom-in-95 duration-300"
-                        />
+            {/* Document Forms */}
+            {showDCForm && (
+                <DCForm 
+                    currentUser={currentUser} 
+                    channelId={channel.id} 
+                    onCreated={(id, num) => {
+                        sendMessage(`[DC] Created Delivery Challan: ${num} | ${id}`);
+                        setShowDCForm(false);
+                        queryClient.invalidateQueries({ queryKey: ['dcs'] });
+                    }}
+                    onClose={() => setShowDCForm(false)}
+                />
+            )}
+
+            {showICForm && (
+                <InwardChallanForm
+                    currentUser={currentUser}
+                    channelId={channel.id}
+                    onCreated={(id, num) => {
+                        sendMessage(`[IC] Created Inward Challan: ${num} | ${id}`);
+                        setShowICForm(false);
+                        queryClient.invalidateQueries({ queryKey: ['inward_challans'] });
+                    }}
+                    onClose={() => setShowICForm(false)}
+                />
+            )}
+
+            {showSalesInvForm && (
+                <QuickSalesInvoiceForm
+                    currentUser={currentUser}
+                    onCreated={(id, num) => {
+                        sendMessage(`[SI] Created Sales Invoice: ${num} | ${id}`);
+                        setShowSalesInvForm(false);
+                    }}
+                    onClose={() => setShowSalesInvForm(false)}
+                />
+            )}
+
+            {showPurchaseInvForm && (
+                <QuickPurchaseInvoiceForm
+                    currentUser={currentUser}
+                    onCreated={(id, num) => {
+                        sendMessage(`[PI] Created Purchase Invoice: ${num} | ${id}`);
+                        setShowPurchaseInvForm(false);
+                    }}
+                    onClose={() => setShowPurchaseInvForm(false)}
+                />
+            )}
+
+            {showExpenseForm && (
+                <SimpleExpenseForm
+                    currentUser={currentUser}
+                    onCreated={(id, desc) => {
+                        sendMessage(`[EX] Recorded Expense: ${desc} | ${id}`);
+                        setShowExpenseForm(false);
+                    }}
+                    onClose={() => setShowExpenseForm(false)}
+                />
+            )}
+
+            {showTaskForm && (
+                <QuickTaskForm
+                    currentUser={currentUser}
+                    channel={channel}
+                    members={members}
+                    onCreated={(id, title) => {
+                        sendMessage(`[TASK] New Task: ${title} | ${id}`, true); // send as system message
+                        setShowTaskForm(false);
+                        queryClient.invalidateQueries({ queryKey: ['tasks', channel.id] });
+                        queryClient.invalidateQueries({ queryKey: ['channels', currentUser.id] });
+                    }}
+                    onClose={() => setShowTaskForm(false)}
+                />
+            )}
+
+            {/* Document Detail Views */}
+            {viewingDoc && (viewingDoc.type === 'DC' || viewingDoc.type === 'IC') && docData && (
+                <ChallanDetailView 
+                    data={docData} 
+                    type={viewingDoc.type} 
+                    onClose={() => { setViewingDoc(null); setDocData(null); }} 
+                />
+            )}
+
+            {viewingDoc && loadingDoc && (
+                <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/20 backdrop-blur-sm">
+                    <div className="bg-white p-6 rounded-3xl shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-95 duration-200">
+                        <div className="animate-spin rounded-full h-10 w-10 border-4 border-[#008069] border-t-transparent"></div>
+                        <p className="text-sm font-bold text-gray-700">Fetching Document...</p>
                     </div>
                 </div>
             )}

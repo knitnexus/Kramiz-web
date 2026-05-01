@@ -3,165 +3,79 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Channel, AttachedFile, User } from '../types';
 import { api } from '../supabaseAPI';
 import { compressImage } from '../imageUtils';
-import { useQueryClient, useMutation, useQuery } from '@tanstack/react-query';
+import { useSpecs } from '../hooks/useSpecs';
+import { TaskList } from '@/features/tasks/components/TaskList';
 
 interface SpecDrawerProps {
     channel: Channel;
     currentUser: User;
+    onAddTaskClick?: () => void;
 }
 
-export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<'SPECS' | 'FILES'>('SPECS');
+export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser, onAddTaskClick }) => {
+    const {
+        isOpen, setIsOpen, activeTab, setActiveTab,
+        files, specs, isEditingDueDate, setIsEditingDueDate,
+        editedDueDate, setEditedDueDate, isUploading,
+        handleFileUpload, handleDeleteFile, handleRenameFile,
+        handleAddSpec, handleDeleteSpec, handleSaveDueDate,
+        editChannelMutation, isOverdue
+    } = useSpecs(channel, currentUser);
 
-    const [files, setFiles] = useState<AttachedFile[]>([...(channel.files || [])]);
-    const [specs, setSpecs] = useState(channel.specs || []);
     const [newSpecContent, setNewSpecContent] = useState('');
     const [previewFile, setPreviewFile] = useState<AttachedFile | null>(null);
-    const queryClient = useQueryClient();
-
-    // Cross-pollination states
-    const [forwardingItem, setForwardingItem] = useState<{ type: 'SPEC' | 'FILE', id: string, nameOrContent: string, url?: string } | null>(null);
-
-    const { data: allChannels = [] } = useQuery({
-        queryKey: ['channels', currentUser.id],
-        queryFn: () => api.getAllChannels(currentUser),
-    });
-    const siblingChannels = allChannels.filter(c => c.po_id === channel.po_id && c.id !== channel.id);
-
-    const forwardMutation = useMutation({
-        mutationFn: async (targetChannelId: string) => {
-            if (!forwardingItem) return;
-            if (forwardingItem.type === 'SPEC') {
-                await api.addSpecToChannel(currentUser, targetChannelId, forwardingItem.nameOrContent);
-                // Also send a system message to alert the group
-                await api.sendMessage(currentUser, targetChannelId, `[SYSTEM] New Specification Added: \n${forwardingItem.nameOrContent}`, true);
-            } else if (forwardingItem.type === 'FILE' && forwardingItem.url) {
-                await api.addFileToChannel(currentUser, targetChannelId, forwardingItem.nameOrContent, forwardingItem.url);
-                await api.sendMessage(currentUser, targetChannelId, `[SYSTEM] New Document Added: ${forwardingItem.nameOrContent}`, true);
-                if (forwardingItem.url.includes('.pdf')) {
-                    await api.sendMessage(currentUser, targetChannelId, `[FILE]${forwardingItem.url}|${forwardingItem.nameOrContent}`);
-                } else if (forwardingItem.url.match(/\.(jpeg|jpg|png|gif)$/i)) {
-                    await api.sendMessage(currentUser, targetChannelId, `[FILE]${forwardingItem.url}|${forwardingItem.nameOrContent}`);
-                }
-            }
-        },
-        onSuccess: () => {
-            setForwardingItem(null);
-            alert('Transferred successfully to the other group!');
-        },
-        onError: (err: any) => alert('Failed to transfer: ' + err.message)
-    });
-
-    // Due Date State
-    const [isEditingDueDate, setIsEditingDueDate] = useState(false);
-    const [editedDueDate, setEditedDueDate] = useState(channel.due_date || '');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // ROLE-BASED PERMISSIONS (UI Control)
-    // Based on new permission model from ROLE_PERMISSIONS_UPDATE.md
     const canEditGroup = ['ADMIN', 'SENIOR_MERCHANDISER', 'SENIOR_MANAGER'].includes(currentUser.role);
 
-    // Sync fields from props if channel changes
-    useEffect(() => {
-        setFiles([...(channel.files || [])]);
-        setSpecs(channel.specs || []);
-        setEditedDueDate(channel.due_date || '');
-        setIsEditingDueDate(false);
-    }, [channel.id]); // Optimized to trigger only on channel change
-
-    const [isUploading, setIsUploading] = useState(false);
-
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const onFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            const selectedFiles = Array.from(e.target.files);
-            setIsUploading(true);
-
             try {
-                (window as any).isKramizUploading = true;
-                for (const file of selectedFiles) {
-                    // Compress if image
-                    const fileToUpload = await compressImage(file);
-
-                    // 1. Upload to Supabase Storage
-                    const publicUrl = await api.uploadFile(fileToUpload as File);
-
-                    // 2. Save reference to Database
-                    const newFile = await api.addFileToChannel(currentUser, channel.id, file.name, publicUrl);
-                    setFiles(prev => [...prev, newFile]);
-                }
-            } catch (err: any) {
-                console.error(err);
-                alert("Failed to upload: " + err.message);
-            } finally {
-                setIsUploading(false);
-                (window as any).isKramizUploading = false;
+                await handleFileUpload(Array.from(e.target.files));
                 if (fileInputRef.current) fileInputRef.current.value = '';
+            } catch (err: any) {
+                alert("Failed to upload: " + err.message);
             }
         }
     };
 
-    const handleDeleteFile = async (fileId: string) => {
+    const onDeleteFile = async (fileId: string) => {
         if (window.confirm("Are you sure you want to remove this file?")) {
-            await api.deleteFileFromChannel(channel.id, fileId);
-            // Force update local state
-            setFiles(prev => prev.filter(f => f.id !== fileId));
+            try {
+                await handleDeleteFile(fileId);
+            } catch (err: any) {
+                alert("Failed to delete file");
+            }
         }
     };
 
-    const editChannelMutation = useMutation({
-        mutationFn: (updates: Partial<Channel>) => api.updateChannel(currentUser, channel.id, updates),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['channels'] });
-            setIsEditingDueDate(false);
-        }
-    });
-
-    const handleSaveDueDate = () => {
-        editChannelMutation.mutate({ due_date: editedDueDate || null });
-    };
-
-    const isOverdue = (date: string | undefined) => {
-        if (!date) return false;
-        const d = new Date(date);
-        const now = new Date();
-        now.setHours(0, 0, 0, 0);
-        d.setHours(0, 0, 0, 0);
-        return d < now;
-    };
-
-    const handleRenameFile = async (file: AttachedFile) => {
+    const onRenameFile = async (file: AttachedFile) => {
         const newName = window.prompt("Enter new name for the file:", file.name);
         if (newName && newName !== file.name) {
             try {
-                await api.renameFile(file.id, newName);
-                setFiles(prev => prev.map(f => f.id === file.id ? { ...f, name: newName } : f));
+                await handleRenameFile(file.id, newName);
             } catch (err: any) {
-                alert(err.message || "Failed to rename file");
+                alert("Failed to rename file");
             }
         }
     };
 
-    const handleAddSpec = async () => {
+    const onAddSpec = async () => {
         if (!newSpecContent.trim()) return;
         try {
-            const newSpec = await api.addSpecToChannel(currentUser, channel.id, newSpecContent);
-            setSpecs(prev => [newSpec, ...prev]); // Add to beginning since we order by created_at DESC
+            await handleAddSpec(newSpecContent);
             setNewSpecContent('');
         } catch (err) {
-            console.error(err);
             alert("Failed to add spec");
         }
     };
 
-    const handleDeleteSpec = async (specId: string) => {
+    const onDeleteSpec = async (specId: string) => {
         if (window.confirm("Are you sure you want to remove this spec?")) {
             try {
-                await api.deleteSpecFromChannel(channel.id, specId);
-                setSpecs(prev => prev.filter(s => s.id !== specId));
+                await handleDeleteSpec(specId);
             } catch (err) {
-                console.error(err);
                 alert("Failed to delete spec");
             }
         }
@@ -175,6 +89,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
         }
     };
 
+
     return (
         <div className="bg-white border-b border-gray-200 shadow-sm z-20 relative">
             <div
@@ -183,8 +98,8 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                 onClick={() => setIsOpen(!isOpen)}
             >
                 <div className="flex flex-col">
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Group Specs & Files</span>
-                    <span className="font-semibold text-gray-900">{channel.name}</span>
+                    <span className="text-[13px] font-medium text-gray-500">Group Specs & Files</span>
+                    <span className="text-xl font-semibold text-gray-900">{channel.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">{specs.length} Specs</span>
@@ -209,38 +124,38 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                     <div className="mb-1.5 p-1.5 bg-slate-50 rounded-xl border border-slate-100 shadow-sm">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="flex flex-wrap items-center gap-2">
-                                <h4 className="text-[12px] font-bold text-slate-600 uppercase tracking-widest shrink-0">Due Date:</h4>
+                                <h4 className="text-[13px] font-medium text-slate-600 shrink-0">Due Date:</h4>
                                 {isEditingDueDate ? (
                                     <div className="flex items-center gap-2 animate-in slide-in-from-top-1 duration-200" onClick={e => e.stopPropagation()}>
                                         <input
                                             type="date"
                                             value={editedDueDate ? editedDueDate.split('T')[0] : ''}
                                             onChange={(e) => setEditedDueDate(e.target.value)}
-                                            className="text-[12px] border-2 border-[#008069]/20 focus:border-[#008069] rounded-lg px-2 py-0.5 bg-white focus:outline-none transition-all font-bold"
+                                            className="text-[13px] border-2 border-[#008069]/20 focus:border-[#008069] rounded-lg px-2 py-0.5 bg-white focus:outline-none transition-all font-medium"
                                         />
                                         <button
                                             onClick={handleSaveDueDate}
                                             disabled={editChannelMutation.isPending}
-                                            className="bg-[#008069] text-white px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-[#006a57] disabled:bg-gray-400 transition-all shrink-0"
+                                            className="bg-[#008069] text-white px-2.5 py-1 rounded-lg text-[12px] font-medium shadow-sm hover:bg-[#006a57] disabled:bg-gray-400 transition-all shrink-0"
                                         >
                                             {editChannelMutation.isPending ? '...' : 'Set'}
                                         </button>
                                         <button
                                             onClick={() => { setIsEditingDueDate(false); setEditedDueDate(channel.due_date || ''); }}
-                                            className="text-slate-400 hover:text-slate-600 font-bold text-[10px] px-0.5"
+                                            className="text-slate-400 hover:text-slate-600 font-medium text-[12px] px-1"
                                         >
                                             ✕
                                         </button>
                                     </div>
                                 ) : (
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <span className={`text-[14px] font-bold ${isOverdue(channel.due_date) ? 'text-red-500 underline decoration-1' : channel.due_date ? 'text-slate-800' : 'text-slate-600'}`}>
+                                        <span className={`text-[14px] font-medium ${isOverdue(channel.due_date) ? 'text-red-500' : channel.due_date ? 'text-slate-800' : 'text-slate-600'}`}>
                                             {channel.due_date
                                                 ? new Date(channel.due_date).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })
                                                 : 'Not scheduled'}
                                         </span>
                                         {channel.due_date && isOverdue(channel.due_date) && (
-                                            <span className="text-[12px] bg-red-100 text-red-600 px-1.5 py-0 rounded font-normal uppercase shrink-0">overdue</span>
+                                            <span className="text-[12px] bg-red-100 text-red-600 px-1.5 py-0 rounded-md font-medium shrink-0">Overdue</span>
                                         )}
                                     </div>
                                 )}
@@ -278,7 +193,21 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                         >
                             📎 Files ({files.length})
                         </button>
+                        <button
+                            onClick={() => setActiveTab('TASKS' as any)}
+                            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === ('TASKS' as any)
+                                ? 'border-[#008069] text-[#008069]'
+                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            ✅ Tasks
+                        </button>
                     </div>
+
+                    {/* Tasks Tab */}
+                    {activeTab === ('TASKS' as any) && (
+                        <TaskList channel={channel} currentUser={currentUser} onAddTaskClick={onAddTaskClick} />
+                    )}
 
                     {/* Specs Tab */}
                     {activeTab === 'SPECS' && (
@@ -289,31 +218,20 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                             {specs.map(spec => (
                                 <div key={spec.id} className="p-3 border border-gray-200 rounded-lg bg-gray-50 relative group">
                                     <div className="text-sm text-gray-800 whitespace-pre-wrap mb-2">{spec.content}</div>
-                                    <div className="text-[10px] text-gray-400 mt-1">
+                                    <div className="text-[10px] text-gray-400">
                                         Added {spec.created_at ? new Date(spec.created_at).toLocaleDateString() : 'recently'}
                                     </div>
-                                    <div className="absolute top-2 right-2 flex items-center gap-1">
+                                    {canEditGroup && (
                                         <button
-                                            onClick={() => setForwardingItem({ type: 'SPEC', id: spec.id, nameOrContent: spec.content })}
-                                            className="p-1.5 text-[#008069] bg-green-50 rounded-lg shadow-[0_1px_3px_rgba(0,128,105,0.1)] active:bg-green-100 transition-colors"
-                                            title="Forward Spec to another Group"
+                                            onClick={() => onDeleteSpec(spec.id)}
+                                            className="absolute top-2 right-2 p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                            title="Remove Spec"
                                         >
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                             </svg>
                                         </button>
-                                        {canEditGroup && (
-                                            <button
-                                                onClick={() => handleDeleteSpec(spec.id)}
-                                                className="p-1.5 text-gray-500 hover:text-red-500 bg-white border border-gray-100 shadow-sm active:bg-red-50 rounded-lg transition-colors"
-                                                title="Remove Spec"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                            </button>
-                                        )}
-                                    </div>
+                                    )}
                                 </div>
                             ))}
 
@@ -328,7 +246,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                                         rows={3}
                                     />
                                     <button
-                                        onClick={handleAddSpec}
+                                        onClick={onAddSpec}
                                         disabled={!newSpecContent.trim()}
                                         className="w-full bg-[#008069] hover:bg-[#006a57] disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
                                     >
@@ -401,50 +319,35 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                                             </div>
                                         </div>
 
-                                        {/* Actions - Positioned to the right */}
-                                        <div className="flex items-center gap-1 ml-2">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setForwardingItem({ type: 'FILE', id: file.id, nameOrContent: file.name, url: file.url });
-                                                }}
-                                                className="p-1.5 text-gray-400 hover:text-[#008069] hover:bg-green-50 rounded-full transition-colors focus:outline-none z-10"
-                                                title="Forward File to another Group"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                                                </svg>
-                                            </button>
-                                            
-                                            {canEditGroup && (
-                                                <>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleRenameFile(file);
-                                                        }}
-                                                        className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors focus:outline-none z-10"
-                                                        title="Rename File"
-                                                    >
-                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                        </svg>
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation(); // Stop click from triggering view
-                                                            handleDeleteFile(file.id);
-                                                        }}
-                                                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors focus:outline-none z-10"
-                                                        title="Remove File"
-                                                    >
-                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                        </svg>
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
+                                        {/* Actions - Positioned to the right - RESTRICTED */}
+                                        {canEditGroup && (
+                                            <div className="flex items-center gap-1 ml-2">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onRenameFile(file);
+                                                    }}
+                                                    className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors focus:outline-none z-10"
+                                                    title="Rename File"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                    </svg>
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation(); // Stop click from triggering view
+                                                        onDeleteFile(file.id);
+                                                    }}
+                                                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors focus:outline-none z-10"
+                                                    title="Remove File"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -455,7 +358,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                                     <input
                                         type="file"
                                         ref={fileInputRef}
-                                        onChange={handleFileUpload}
+                                        onChange={onFileUpload}
                                         className="hidden"
                                         accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                                         multiple
@@ -538,35 +441,6 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                                 </a>
                             </div>
                         )}
-                    </div>
-                </div>
-            )}
-            {forwardingItem && (
-                <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                            <h3 className="font-bold text-gray-900">Forward to Group</h3>
-                            <button onClick={() => setForwardingItem(null)} className="text-gray-400 hover:text-gray-600">✕</button>
-                        </div>
-                        <div className="p-4 max-h-[60vh] overflow-y-auto space-y-2">
-                            {siblingChannels.length === 0 ? (
-                                <p className="text-sm text-gray-500 py-6 text-center italic">No other groups in this Purchase Order.</p>
-                            ) : (
-                                siblingChannels.map(ch => (
-                                    <button 
-                                        key={ch.id} 
-                                        onClick={() => forwardMutation.mutate(ch.id)}
-                                        disabled={forwardMutation.isPending}
-                                        className="w-full text-left p-4 border border-gray-100 rounded-xl hover:bg-green-50 focus:bg-green-50 transition-colors flex items-center justify-between group"
-                                    >
-                                        <div>
-                                            <p className="font-bold text-gray-800">{ch.name}</p>
-                                        </div>
-                                        <span className="text-green-600 opacity-0 group-hover:opacity-100 font-black">→</span>
-                                    </button>
-                                ))
-                            )}
-                        </div>
                     </div>
                 </div>
             )}
