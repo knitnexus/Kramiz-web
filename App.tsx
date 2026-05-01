@@ -162,9 +162,9 @@ const AppRoutes: React.FC<{
     return (
         <Routes>
             {/* Public Routes */}
-            <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : (isNative ? <Navigate to="/login" replace /> : <LandingPage />)} />
-            <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login onLogin={handleLogin} onBack={() => navigate('/')} />} />
-            <Route path="/signup" element={user ? <Navigate to="/dashboard" replace /> : <Signup onBack={() => navigate('/')} onSignupSuccess={() => navigate('/login')} />} />
+            <Route path="/" element={user ? <Navigate to="/chats" replace /> : (isNative ? <Navigate to="/login" replace /> : <LandingPage />)} />
+            <Route path="/login" element={user ? <Navigate to="/chats" replace /> : <Login onLogin={handleLogin} onBack={() => navigate('/')} />} />
+            <Route path="/signup" element={user ? <Navigate to="/chats" replace /> : <Signup onBack={() => navigate('/')} onSignupSuccess={() => navigate('/login')} />} />
 
             {/* Protected Routes */}
             <Route element={user ? <AuthenticatedLayout user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />}>
