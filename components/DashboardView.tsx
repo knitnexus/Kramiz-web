@@ -75,6 +75,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser }) => 
                 </h1>
             </div>
 
+            {/* GST Update Prompt for Admins */}
+            {currentUser.role === 'ADMIN' && currentUser.company_id && (
+                (() => {
+                    const { data: company } = useQuery({
+                        queryKey: ['company', currentUser.company_id],
+                        queryFn: () => api.getCompany(currentUser.company_id)
+                    });
+                    
+                    if (company && !company.gst_number) {
+                        return (
+                            <div className="mx-3 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-500">
+                                <div className="flex gap-3">
+                                    <div className="text-xl">⚠️</div>
+                                    <div className="flex-1">
+                                        <h4 className="text-sm font-black text-amber-900 uppercase tracking-tight">GST Update Required</h4>
+                                        <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                                            Your company doesn't have a GST number. Add it now so partners can find and verify your business.
+                                        </p>
+                                        <button 
+                                            onClick={() => navigate('/settings/profile')}
+                                            className="mt-3 px-4 py-2 bg-amber-600 text-white text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-amber-700 transition-all active:scale-95 shadow-sm"
+                                        >
+                                            Add GST Number →
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }
+                    return null;
+                })()
+            )}
+
             <div className="flex-1 overflow-y-auto px-3 pt-4 pb-24 space-y-1">
                 <p className="text-[11px] text-gray-400 uppercase tracking-widest px-2 pb-2">Documents</p>
 
