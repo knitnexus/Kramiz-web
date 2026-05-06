@@ -49,20 +49,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
             <div className="bg-[#f0f2f5] border-b sticky top-0 z-10 flex flex-col pt-[env(safe-area-inset-top)] min-w-0 overflow-hidden">
                 <div className="px-5 py-4 flex justify-between items-center min-w-0">
                     <h1 className="text-[22px] font-bold text-gray-900 tracking-tight">Chats</h1>
-                    <div className="flex bg-gray-200 p-0.5 rounded-lg">
-                        <button 
-                            onClick={() => setSidebarView('ORDER')} 
-                            className={`px-3 py-1 text-[11px] font-black uppercase rounded-md transition-all ${sidebarView === 'ORDER' ? 'bg-white text-[#008069] shadow-sm' : 'text-gray-500'}`}
-                        >
-                            Orders
-                        </button>
-                        <button 
-                            onClick={() => setSidebarView('PARTNER')} 
-                            className={`px-3 py-1 text-[11px] font-black uppercase rounded-md transition-all ${sidebarView === 'PARTNER' ? 'bg-white text-[#008069] shadow-sm' : 'text-gray-500'}`}
-                        >
-                            Partners
-                        </button>
-                    </div>
                 </div>
 
                 <div className="px-4 pb-3 min-w-0">
@@ -80,6 +66,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                         </div>
+                    </div>
+                </div>
+
+                <div className="px-4 pb-4 min-w-0">
+                    <div className="flex bg-gray-200/50 p-1 rounded-xl">
+                        <button 
+                            onClick={() => setSidebarView('ORDER')} 
+                            className={`flex-1 py-2 text-[12px] font-black uppercase rounded-lg transition-all ${sidebarView === 'ORDER' ? 'bg-white text-[#008069] shadow-sm' : 'text-gray-500'}`}
+                        >
+                            Orders
+                        </button>
+                        <button 
+                            onClick={() => setSidebarView('PARTNER')} 
+                            className={`flex-1 py-2 text-[12px] font-black uppercase rounded-lg transition-all ${sidebarView === 'PARTNER' ? 'bg-white text-[#008069] shadow-sm' : 'text-gray-500'}`}
+                        >
+                            Partners
+                        </button>
                     </div>
                 </div>
             </div>
@@ -100,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto pb-32">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden pb-32 min-w-0">
                 {loading ? (
                     <div className="p-12 text-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#008069] mx-auto mb-4"></div>
@@ -175,24 +178,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                                 onClick={() => toggleOrder(order.id)}
                                                 className={`px-5 py-4 cursor-pointer flex items-center justify-between border-b border-gray-50 hover:bg-gray-50 transition-colors min-w-0 ${hasUnread ? 'bg-green-50/20' : ''}`}
                                             >
-                                                <div className="flex items-center gap-4 min-w-0">
+                                                <div className="flex items-center gap-4 min-w-0 flex-1">
                                                     <div className="relative">
                                                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-sm border-2 transition-all ${isCompleted ? 'bg-gray-50 border-gray-200' : 'bg-white border-white'}`}>
                                                             📦
                                                         </div>
                                                         {hasUnread && <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#00a884] rounded-full border-2 border-white shadow-sm"></div>}
                                                     </div>
-                                                    <div className="min-w-0">
-                                                        <div className="flex items-center gap-2 mb-0.5">
-                                                            <h3 className={`text-[17px] font-black truncate uppercase tracking-tight ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>{order.order_number}</h3>
-                                                            {isCompleted && <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full font-black uppercase">Completed</span>}
-                                                            {order.status === 'PENDING' && <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-black uppercase">Pending</span>}
-                                                            {order.status === 'IN_PROGRESS' && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-black uppercase">Active</span>}
+                                                    <div className="min-w-0 flex-1 overflow-hidden w-full">
+                                                        <div className="flex items-center gap-2 mb-0.5 min-w-0 overflow-hidden w-full">
+                                                            <h3 className={`text-[17px] font-black uppercase tracking-tight flex-1 min-w-0 w-0 truncate ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>{order.order_number}</h3>
+                                                            {isCompleted && <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full font-black uppercase shrink-0">Completed</span>}
+                                                            {order.status === 'PENDING' && <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-black uppercase shrink-0">Pending</span>}
+                                                            {order.status === 'IN_PROGRESS' && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-black uppercase shrink-0">Active</span>}
                                                         </div>
                                                         <p className="text-[12px] font-bold text-[#008069] truncate uppercase tracking-widest">{order.style_number}</p>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 shrink-0">
                                                     <div className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
                                                         <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
                                                     </div>
@@ -225,10 +228,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                                                 }}
                                                                 className={`px-6 py-4 cursor-pointer flex items-center justify-between group transition-all hover:bg-gray-50 border-l-4 ${selectedGroupId === ch.id ? 'bg-[#f0f2f5] border-[#008069]' : 'border-transparent'}`}
                                                             >
-                                                                <div className="flex-1 min-w-0 pr-3">
-                                                                    <div className="flex justify-between items-start mb-0.5">
-                                                                        <div className="flex items-center gap-2 truncate">
-                                                                            <span className={`text-[16px] truncate ${isDueSoon(ch.due_date) && ch.status !== 'COMPLETED' ? 'text-red-600 font-black' : hasUnread ? 'font-bold text-[#111b21]' : 'font-medium text-gray-700'}`}>{ch.name}</span>
+                                                                <div className="flex-1 min-w-0 pr-3 overflow-hidden">
+                                                                    <div className="flex justify-between items-start mb-0.5 overflow-hidden">
+                                                                        <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                                                                            <span className={`text-[16px] flex-1 min-w-0 truncate ${isDueSoon(ch.due_date) && ch.status !== 'COMPLETED' ? 'text-red-600 font-black' : hasUnread ? 'font-bold text-[#111b21]' : 'font-medium text-gray-700'}`}>{ch.name}</span>
                                                                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-regular uppercase tracking-tight shrink-0 transition-all ${ch.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' : ch.status === 'COMPLETED' ? 'bg-gray-100 text-gray-500' : 'bg-yellow-100 text-yellow-700'}`}>
                                                                                 {ch.status === 'IN_PROGRESS' ? 'Active' : ch.status}
                                                                             </span>
@@ -308,10 +311,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                                             }}
                                                             className={`px-6 py-4 cursor-pointer flex items-center justify-between group transition-all hover:bg-gray-50 border-l-4 min-w-0 ${selectedGroupId === ch.id ? 'bg-[#f0f2f5] border-[#008069]' : 'border-transparent'}`}
                                                         >
-                                                        <div className="flex-1 min-w-0 pr-3">
-                                                            <div className="flex justify-between items-start mb-0.5 gap-2">
-                                                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                                    <span className={`text-[16px] truncate ${isDueSoon(ch.due_date) && ch.status !== 'COMPLETED' ? 'text-red-600 font-black' : hasUnread ? 'font-bold text-[#111b21]' : 'font-medium text-gray-700'}`}>{ch.name}</span>
+                                                        <div className="flex-1 min-w-0 pr-3 overflow-hidden">
+                                                            <div className="flex justify-between items-start mb-0.5 gap-2 overflow-hidden">
+                                                                <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                                                                    <span className={`text-[16px] flex-1 min-w-0 w-0 truncate ${isDueSoon(ch.due_date) && ch.status !== 'COMPLETED' ? 'text-red-600 font-black' : hasUnread ? 'font-bold text-[#111b21]' : 'font-medium text-gray-700'}`}>{ch.name}</span>
                                                                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-regular uppercase tracking-tight shrink-0 transition-all ${ch.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' : ch.status === 'COMPLETED' ? 'bg-gray-100 text-gray-500' : 'bg-yellow-100 text-yellow-700'}`}>
                                                                         {ch.status === 'IN_PROGRESS' ? 'Active' : ch.status === 'COMPLETED' ? 'Completed' : 'Pending'}
                                                                     </span>
