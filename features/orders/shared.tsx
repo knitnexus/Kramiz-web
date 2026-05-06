@@ -54,8 +54,8 @@ export const EmptyState: React.FC<{
 
 const STATUS_STYLES: Record<string, string> = {
     PENDING:     'bg-yellow-100 text-yellow-700',
-    IN_PROGRESS: 'bg-blue-100 text-blue-700',
-    COMPLETED:   'bg-green-100 text-green-700',
+    IN_PROGRESS: 'bg-green-100 text-green-700',
+    COMPLETED:   'bg-gray-100 text-gray-500',
     DRAFT:       'bg-gray-100 text-gray-600',
     SENT:        'bg-indigo-100 text-indigo-700',
     RECEIVED:    'bg-green-100 text-green-700',
@@ -65,7 +65,7 @@ const STATUS_STYLES: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
     IN_PROGRESS: 'Active',
     PENDING:     'Pending',
-    COMPLETED:   'Done',
+    COMPLETED:   'Completed',
     DRAFT:       'Draft',
     SENT:        'Sent',
     RECEIVED:    'Received',

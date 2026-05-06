@@ -44,10 +44,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
 
 
     return (
-        <div className="flex flex-col h-full bg-white border-r border-gray-200 w-full md:w-[400px] overflow-hidden relative">
+        <div className="flex flex-col h-full bg-white border-r border-gray-200 w-full min-w-0 max-w-full md:max-w-none md:w-[400px] overflow-hidden relative">
             {/* Header & View Controls */}
-            <div className="bg-[#f0f2f5] border-b sticky top-0 z-10 flex flex-col safe-pt">
-                <div className="px-5 py-4 flex justify-between items-center">
+            <div className="bg-[#f0f2f5] border-b sticky top-0 z-10 flex flex-col pt-[env(safe-area-inset-top)] min-w-0 overflow-hidden">
+                <div className="px-5 py-4 flex justify-between items-center min-w-0">
                     <h1 className="text-[22px] font-bold text-gray-900 tracking-tight">Chats</h1>
                     <div className="flex bg-gray-200 p-0.5 rounded-lg">
                         <button 
@@ -65,7 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                     </div>
                 </div>
 
-                <div className="px-4 pb-3">
+                <div className="px-4 pb-3 min-w-0">
                     <div className="relative">
                         <select 
                             value={activeTab} 
@@ -85,7 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
             </div>
 
             {/* Global Search Bar */}
-            <div className="px-4 py-2 border-b border-gray-100">
+            <div className="px-4 py-2 border-b border-gray-100 min-w-0">
                 <div className="relative">
                     <input
                         type="text"
@@ -110,11 +110,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                     <React.Fragment>
                         {sidebarView === 'ORDER' ? (
                             (() => {
-                                const filteredOrders = orders.filter(o => 
-                                    (o.order_number.toLowerCase().includes(globalSearchQuery.toLowerCase()) || 
-                                    o.style_number?.toLowerCase().includes(globalSearchQuery.toLowerCase())) &&
-                                    (activeTab === 'ALL' || o.status === activeTab)
-                                ).sort((a, b) => {
+                                const filteredOrders = orders.filter(o => {
+                                    const oChannels = channelsMap[o.id] || [];
+                                    const matchesSearch = 
+                                        o.order_number.toLowerCase().includes(globalSearchQuery.toLowerCase()) || 
+                                        o.style_number?.toLowerCase().includes(globalSearchQuery.toLowerCase()) ||
+                                        oChannels.some(ch => ch.name.toLowerCase().includes(globalSearchQuery.toLowerCase()));
+                                    
+                                    const matchesTab = activeTab === 'ALL' || o.status === activeTab;
+                                    
+                                    return matchesSearch && matchesTab;
+                                }).sort((a, b) => {
+                                    // 1. Sort by Status: PENDING (0) -> IN_PROGRESS (1) -> COMPLETED (2)
+                                    const statusPriority: Record<string, number> = { 'PENDING': 0, 'IN_PROGRESS': 1, 'COMPLETED': 2 };
+                                    const aPri = statusPriority[a.status] ?? 0;
+                                    const bPri = statusPriority[b.status] ?? 0;
+                                    if (aPri !== bPri) return aPri - bPri;
+
+                                    // 2. Secondary Sort: Due Date (closest first)
                                     const aChannels = channelsMap[a.id] || [];
                                     const bChannels = channelsMap[b.id] || [];
                                     const getClosestDate = (channels: any[]) => {
@@ -124,6 +137,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                     const aDate = getClosestDate(aChannels);
                                     const bDate = getClosestDate(bChannels);
                                     if (aDate !== Infinity || bDate !== Infinity) return aDate - bDate;
+
+                                    // 3. Tertiary Sort: Created Date (newest first)
                                     const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
                                     const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
                                     return bCreated - aCreated;
@@ -158,7 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                         <div key={order.id} className={`transition-all ${isExpanded ? 'bg-gray-50/50' : 'bg-white'}`}>
                                             <div 
                                                 onClick={() => toggleOrder(order.id)}
-                                                className={`px-5 py-4 cursor-pointer flex items-center justify-between border-b border-gray-50 hover:bg-gray-50 transition-colors ${hasUnread ? 'bg-green-50/20' : ''}`}
+                                                className={`px-5 py-4 cursor-pointer flex items-center justify-between border-b border-gray-50 hover:bg-gray-50 transition-colors min-w-0 ${hasUnread ? 'bg-green-50/20' : ''}`}
                                             >
                                                 <div className="flex items-center gap-4 min-w-0">
                                                     <div className="relative">
@@ -170,7 +185,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                                     <div className="min-w-0">
                                                         <div className="flex items-center gap-2 mb-0.5">
                                                             <h3 className={`text-[17px] font-black truncate uppercase tracking-tight ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>{order.order_number}</h3>
-                                                            {isCompleted && <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full font-black uppercase">Archived</span>}
+                                                            {isCompleted && <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full font-black uppercase">Completed</span>}
+                                                            {order.status === 'PENDING' && <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-black uppercase">Pending</span>}
+                                                            {order.status === 'IN_PROGRESS' && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-black uppercase">Active</span>}
                                                         </div>
                                                         <p className="text-[12px] font-bold text-[#008069] truncate uppercase tracking-widest">{order.style_number}</p>
                                                     </div>
@@ -222,7 +239,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                                                             </span>
                                                                         )}
                                                                     </div>
-                                                                    <div className="flex items-center gap-2">
+                                                                    <div className="flex items-center gap-2 min-w-0">
                                                                         <span className={`text-[13px] truncate ${hasUnread ? 'text-[#111b21] font-semibold' : 'text-gray-500 tracking-tight'}`}>
                                                                             {ch.status === 'COMPLETED' ? '✓ Group closed' : (ch.last_message ? ch.last_message : (ch.due_date ? `Due: ${new Date(ch.due_date).toLocaleDateString([], { day: '2-digit', month: 'short' })}` : 'No messages yet'))}
                                                                         </span>
@@ -269,50 +286,50 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                 if (partners.length === 0) return <div className="p-12 text-center text-gray-400 text-sm italic">No matching partners found.</div>;
 
                                 return partners.map((partner, idx) => (
-                                    <div key={partner.name} className={`${idx > 0 ? 'border-t border-gray-100' : ''}`}>
-                                        <div className="px-5 py-2.5 bg-gray-50 flex items-center gap-2">
-                                            <div className="w-6 h-6 rounded-lg bg-[#008069]/10 flex items-center justify-center">
+                                    <div key={partner.name} className={`${idx > 0 ? 'border-t border-gray-100' : ''} min-w-0`}>
+                                        <div className="px-5 py-2.5 bg-gray-50 flex items-center gap-2 overflow-hidden min-w-0">
+                                            <div className="w-6 h-6 rounded-lg bg-[#008069]/10 flex items-center justify-center flex-shrink-0">
                                                 <svg className="w-3.5 h-3.5 text-[#008069]" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" /></svg>
                                             </div>
-                                            <span className="text-[12px] font-black uppercase tracking-widest text-[#008069]">{partner.name}</span>
-                                            <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full ml-auto">{partner.channels.length}</span>
+                                            <span className="text-[12px] font-black uppercase tracking-widest text-[#008069] truncate flex-1">{partner.name}</span>
+                                            <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full ml-auto flex-shrink-0">{partner.channels.length}</span>
                                         </div>
                                         <div className="divide-y divide-gray-50">
                                             {partner.channels.map(ch => {
                                                 const hasUnread = ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at);
                                                 const orderOfChannel = ch.order;
                                                 return (
-                                                    <div
-                                                        key={ch.id}
-                                                        onClick={() => {
-                                                            onSelectGroup(ch, orderOfChannel);
-                                                            api.markChannelAsRead(currentUser, ch.id);
-                                                            queryClient.invalidateQueries({ queryKey: ['channels'] });
-                                                        }}
-                                                        className={`px-6 py-4 cursor-pointer flex items-center justify-between group transition-all hover:bg-gray-50 border-l-4 ${selectedGroupId === ch.id ? 'bg-[#f0f2f5] border-[#008069]' : 'border-transparent'}`}
-                                                    >
+                                                        <div
+                                                            key={ch.id}
+                                                            onClick={() => {
+                                                                onSelectGroup(ch, orderOfChannel);
+                                                                api.markChannelAsRead(currentUser, ch.id);
+                                                                queryClient.invalidateQueries({ queryKey: ['channels'] });
+                                                            }}
+                                                            className={`px-6 py-4 cursor-pointer flex items-center justify-between group transition-all hover:bg-gray-50 border-l-4 min-w-0 ${selectedGroupId === ch.id ? 'bg-[#f0f2f5] border-[#008069]' : 'border-transparent'}`}
+                                                        >
                                                         <div className="flex-1 min-w-0 pr-3">
-                                                            <div className="flex justify-between items-start mb-0.5">
-                                                                <div className="flex items-center gap-2 truncate">
+                                                            <div className="flex justify-between items-start mb-0.5 gap-2">
+                                                                <div className="flex items-center gap-2 min-w-0 flex-1">
                                                                     <span className={`text-[16px] truncate ${isDueSoon(ch.due_date) && ch.status !== 'COMPLETED' ? 'text-red-600 font-black' : hasUnread ? 'font-bold text-[#111b21]' : 'font-medium text-gray-700'}`}>{ch.name}</span>
                                                                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-regular uppercase tracking-tight shrink-0 transition-all ${ch.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' : ch.status === 'COMPLETED' ? 'bg-gray-100 text-gray-500' : 'bg-yellow-100 text-yellow-700'}`}>
-                                                                        {ch.status === 'IN_PROGRESS' ? 'Active' : ch.status}
+                                                                        {ch.status === 'IN_PROGRESS' ? 'Active' : ch.status === 'COMPLETED' ? 'Completed' : 'Pending'}
                                                                     </span>
                                                                 </div>
                                                                 {ch.last_activity_at && (
-                                                                    <span className={`text-[11px] shrink-0 ml-2 ${hasUnread ? 'text-[#00a884] font-bold' : 'text-gray-400 font-medium'}`}>
+                                                                    <span className={`text-[11px] shrink-0 ${hasUnread ? 'text-[#00a884] font-bold' : 'text-gray-400 font-medium'}`}>
                                                                         {new Date(ch.last_activity_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
                                                                     </span>
                                                                 )}
                                                             </div>
-                                                            <div className="flex flex-col">
-                                                                <span className="text-[11px] text-[#008069] font-bold uppercase tracking-tight mb-1">{orderOfChannel?.order_number} • {orderOfChannel?.style_number}</span>
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className="text-[11px] text-[#008069] font-bold uppercase tracking-tight mb-1 truncate">{orderOfChannel?.order_number} • {orderOfChannel?.style_number}</span>
                                                                 <span className={`text-[13px] truncate ${hasUnread ? 'text-[#111b21] font-semibold' : 'text-gray-500 tracking-tight'}`}>
                                                                     {ch.last_message || 'No messages'}
                                                                 </span>
                                                             </div>
                                                         </div>
-                                                        {hasUnread && <div className="w-5 h-5 bg-[#00a884] rounded-full flex items-center justify-center shadow-sm"><span className="text-[10px] text-white font-black">1</span></div>}
+                                                        {hasUnread && <div className="w-5 h-5 bg-[#00a884] rounded-full flex-shrink-0 flex items-center justify-center shadow-sm"><span className="text-[10px] text-white font-black">1</span></div>}
                                                     </div>
                                                 );
                                             })}

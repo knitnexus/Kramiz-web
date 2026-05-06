@@ -17,6 +17,21 @@ export const QuickTaskForm: React.FC<QuickTaskFormProps> = ({ currentUser, chann
   const [dueDate, setDueDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const ROLE_RANK: Record<string, number> = {
+    'ADMIN': 5,
+    'MERCHANDISER': 4,
+    'MANAGER': 3,
+    'SENIOR_STAFF': 2,
+    'JUNIOR_STAFF': 1
+  };
+
+  const filteredMembers = members.filter(member => {
+    if (currentUser.role === 'ADMIN') return true;
+    const currentRank = ROLE_RANK[currentUser.role] || 0;
+    const memberRank = ROLE_RANK[member.role] || 0;
+    return currentRank >= memberRank;
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !assigneeId) return;
@@ -78,7 +93,7 @@ export const QuickTaskForm: React.FC<QuickTaskFormProps> = ({ currentUser, chann
                 required
               >
                 <option value="">Assign to...</option>
-                {members.map(member => (
+                {filteredMembers.map(member => (
                   <option key={member.id} value={member.id}>
                     {member.id === currentUser.id ? 'Me' : member.name}
                   </option>

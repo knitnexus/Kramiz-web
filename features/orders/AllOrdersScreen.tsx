@@ -63,7 +63,7 @@ export const AllOrdersScreen: React.FC<AllOrdersScreenProps> = ({ currentUser })
                     {isLoading ? (
                         <div className="p-10 text-center text-gray-400 text-sm">Loading…</div>
                     ) : orders.length === 0 ? (
-                        <EmptyState icon="📦" title="No orders yet" subtitle="Tap + to create your first order" />
+                        <EmptyState icon="📦" title="No orders yet" subtitle="Your production orders will appear here" />
                     ) : (
                         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
                         {orders.map(order => {
@@ -103,17 +103,6 @@ export const AllOrdersScreen: React.FC<AllOrdersScreenProps> = ({ currentUser })
                     )}
                 </div>
             </div>
-
-            {canCreate && !creating && (
-                <div className="fixed bottom-[84px] right-4 md:hidden z-20">
-                    <button
-                        onClick={() => setCreating(true)}
-                        className="w-14 h-14 bg-[#008069] text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg hover:bg-[#006a57] transition-transform active:scale-95"
-                    >
-                        +
-                    </button>
-                </div>
-            )}
         </div>
     );
 

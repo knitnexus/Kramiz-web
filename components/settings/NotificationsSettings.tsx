@@ -68,9 +68,9 @@ export const NotificationsSettings: React.FC<NotificationsSettingsProps> = ({ cu
                         </div>
                         <button 
                             onClick={handleToggle}
-                            className={`w-12 h-6 rounded-full transition-colors relative ${enabled ? 'bg-[#008069]' : 'bg-gray-200'}`}
+                            className={`w-11 h-6 rounded-full transition-all duration-200 relative flex items-center px-1 ${enabled ? 'bg-[#008069]' : 'bg-gray-300'}`}
                         >
-                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${enabled ? 'left-7' : 'left-1'}`} />
+                            <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200 transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
                         </button>
                     </div>
                 </div>

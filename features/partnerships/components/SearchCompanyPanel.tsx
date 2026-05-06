@@ -96,13 +96,13 @@ export const SearchCompanyPanel: React.FC<SearchCompanyPanelProps> = ({
             {/* Result card */}
             {searchResult && (
                 <div className="mt-4 p-5 bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                         <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-xl bg-white border border-green-200 shadow-sm flex items-center justify-center text-2xl font-black text-green-700">
+                            <div className="w-12 h-12 shrink-0 rounded-xl bg-white border border-green-200 shadow-sm flex items-center justify-center text-2xl font-black text-green-700">
                                 {searchResult.name.charAt(0).toUpperCase()}
                             </div>
-                            <div>
-                                <p className="font-black text-gray-900 text-base">{searchResult.name}</p>
+                            <div className="min-w-0">
+                                <p className="font-black text-gray-900 text-base truncate">{searchResult.name}</p>
                                 <div className="flex flex-wrap gap-2 mt-1">
                                     {searchResult.kramiz_id && (
                                         <span className="text-[10px] font-mono bg-white border border-green-200 text-green-700 px-2 py-0.5 rounded-full">
@@ -120,7 +120,7 @@ export const SearchCompanyPanel: React.FC<SearchCompanyPanelProps> = ({
                         <button
                             onClick={() => onSendInvite(searchResult.id)}
                             disabled={isSendingInvite || inviteSent}
-                            className="shrink-0 px-5 py-2.5 bg-[#008069] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#006a57] disabled:opacity-50 transition-all flex items-center gap-2"
+                            className="w-full sm:w-auto shrink-0 px-5 py-2.5 bg-[#008069] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#006a57] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                         >
                             {isSendingInvite ? (
                                 <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />

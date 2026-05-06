@@ -8,6 +8,8 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { User, Company, Contact, GSTType, GSTRate, Order, Invoice } from '../../../types';
 import { api } from '../../../supabaseAPI';
+import { useContacts } from '../../contacts/useContacts';
+import { AddContactModal } from '../../contacts/components/AddContactModal';
 
 interface QuickPurchaseInvoiceFormProps {
     currentUser: User;
@@ -18,6 +20,14 @@ interface QuickPurchaseInvoiceFormProps {
 
 export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> = ({ currentUser, initialData, onCreated, onClose }) => {
     const qc = useQueryClient();
+    const { 
+        isAdding: isAddingContact, 
+        form: contactForm, 
+        setForm: setContactForm,
+        isGSTValid, isPINValid, handleGSTInput, handlePINInput,
+        openAdd: openAddContact, closeModal: closeContactModal, handleSave: saveContact,
+        isSaving: savingContact
+    } = useContacts(currentUser);
     
     const [sellerSearch, setSellerSearch]       = useState('');
     const [selectedSeller, setSelectedSeller]   = useState<{ id: string, companyId?: string, type: 'partner' | 'contact', name: string } | null>(
@@ -102,6 +112,7 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
         const finalSellerName = selectedSeller ? selectedSeller.name : sellerSearch.trim();
         if (!finalSellerName) return alert('Please enter or select a vendor');
         if (!vendorInvoiceNo.trim()) return alert('Please enter the vendor\'s invoice number');
+        if (!orderId) return alert('Please select an Order to link this bill to');
         
         const validItems = items.filter(it => it.description && it.rate);
         if (validItems.length === 0) return alert('Add at least one complete line item');
@@ -152,7 +163,7 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                 
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white flex-none">
                     <div>
-                        <h3 className="text-xl font-bold text-gray-900 tracking-tight">Add Vendor Bill</h3>
+                        <h3 className="text-xl font-bold text-gray-900 tracking-tight">Add new Purchase Inv.</h3>
                         <p className="text-[11px] text-orange-600 font-bold uppercase tracking-widest mt-0.5">Formal Purchase Invoice</p>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-400 transition-colors">✕</button>
@@ -188,6 +199,21 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                                         <span className={`text-[9px] font-black uppercase tracking-tighter px-2 py-0.5 rounded ${s.type === 'partner' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{s.tag}</span>
                                     </button>
                                 ))}
+                                {sellerSearch.trim().length > 0 && (
+                                    <button 
+                                        onClick={() => {
+                                            openAddContact();
+                                            setContactForm(f => ({ ...f, name: sellerSearch.trim() }));
+                                        }}
+                                        className="w-full text-left px-4 py-4 bg-orange-50 hover:bg-orange-100 flex items-center gap-3 transition-colors group"
+                                    >
+                                        <div className="w-8 h-8 rounded-lg bg-orange-600 text-white flex items-center justify-center text-lg font-bold group-hover:scale-110 transition-transform">+</div>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-900">Add "{sellerSearch}" as Contact</p>
+                                            <p className="text-[10px] text-orange-600 font-regular tracking-widest">Quick Create Partner</p>
+                                        </div>
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -203,9 +229,9 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                         </div>
                         <div>
                             <label className={labelCls}>Link Order</label>
-                            <select value={orderId} onChange={e => setOrderId(e.target.value)} className={inputCls}>
-                                <option value="">Select...</option>
-                                {orders.map(o => <option key={o.id} value={o.id}>{o.order_number}</option>)}
+                            <select value={orderId} onChange={e => setOrderId(e.target.value)} className={inputCls + " border-orange-600/30"}>
+                                <option value="">Select Order...</option>
+                                {orders.map(o => <option key={o.id} value={o.id}>{o.order_number} — {o.style_number}</option>)}
                             </select>
                         </div>
                         <div>
@@ -265,10 +291,25 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                         disabled={saving || !vendorInvoiceNo || !items[0].description}
                         className="flex-[2] py-4 bg-orange-600 text-white font-bold rounded-2xl shadow-lg hover:bg-orange-700 disabled:opacity-50 transition-all"
                     >
-                        {saving ? 'Saving...' : 'Record Vendor Bill'}
+                        {saving ? 'Saving...' : 'Add new Purchase Inv.'}
                     </button>
                 </div>
             </div>
+
+            {isAddingContact && (
+                <AddContactModal
+                    form={contactForm}
+                    setForm={setContactForm}
+                    isEditing={false}
+                    isSaving={savingContact}
+                    isGSTValid={isGSTValid}
+                    isPINValid={isPINValid}
+                    handleGSTInput={handleGSTInput}
+                    handlePINInput={handlePINInput}
+                    onSave={saveContact}
+                    onClose={closeContactModal}
+                />
+            )}
         </div>
     );
 };

@@ -14,7 +14,7 @@ import { MainLayout } from './components/MainLayout';
 import { ChatRoom } from './components/ChatRoom';
 import WelcomeView from './components/WelcomeView';
 import { findGroupByIdOrSlug } from './routeUtils';
-import { initializeNativePlugins, isNative, scheduleLocalNotification } from './capacitorUtils';
+import { initializeNativePlugins, isNative, scheduleLocalNotification, App as CapacitorApp } from './capacitorUtils';
 
 import { DashboardView } from './components/DashboardView';
 import { useLocation } from 'react-router-dom';
@@ -50,20 +50,40 @@ const AuthenticatedLayout: React.FC<{ user: User; onLogout: () => void }> = ({ u
             } catch (err) { console.error('[Native Share] Failed to parse share data:', err); }
         };
 
-        if (isNative) window.addEventListener('kramizShareIntent' as any, handleKramizShare);
-        
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
                 const lastHidden = (window as any).lastHiddenTime || 0;
-                if (Date.now() - lastHidden > 300000) queryClient.invalidateQueries();
+                // Refresh data if away for more than 10 seconds (much more aggressive)
+                if (Date.now() - lastHidden > 10000) {
+                    console.log('[App] Auto-refreshing data...');
+                    queryClient.invalidateQueries();
+                }
             } else {
                 (window as any).lastHiddenTime = Date.now();
             }
         };
+
+        if (isNative) {
+            window.addEventListener('kramizShareIntent' as any, handleKramizShare);
+            
+            // Catch shares during cold starts or deep links
+            const urlListener = CapacitorApp.addListener('appUrlOpen', (data) => {
+                console.log('[App] Received external URL/File:', data.url);
+                if (data.url.includes('share') || data.url.startsWith('file://')) {
+                    setPendingShare({ type: 'file', content: 'Shared Content', url: data.url });
+                }
+            });
+
+            return () => {
+                window.removeEventListener('kramizShareIntent' as any, handleKramizShare);
+                urlListener.then(l => l.remove());
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+            };
+        }
+        
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('kramizShareIntent' as any, handleKramizShare);
         };
     }, [queryClient, setPendingShare]);
 

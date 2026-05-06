@@ -33,6 +33,7 @@ export const SimpleExpenseForm: React.FC<SimpleExpenseFormProps> = ({ currentUse
     const handleCreate = async () => {
         if (!description.trim()) return alert('Please enter what this was for');
         if (!amount || parseFloat(amount) <= 0) return alert('Please enter a valid amount');
+        if (!orderId) return alert('Please select an Order to link this expense to');
 
         setSaving(true);
         try {
@@ -66,7 +67,7 @@ export const SimpleExpenseForm: React.FC<SimpleExpenseFormProps> = ({ currentUse
                 {/* Header */}
                 <div className="px-8 py-6 border-b border-gray-50 flex items-center justify-between">
                     <div>
-                        <h3 className="text-xl font-black text-gray-900 tracking-tight">Record Quick Expense</h3>
+                        <h3 className="text-xl font-black text-gray-900 tracking-tight">Add new Quick Expense</h3>
                         <p className="text-[10px] text-cyan-600 font-bold uppercase tracking-widest mt-0.5">Labour, Tea, Auto, etc.</p>
                     </div>
                     <button onClick={onClose} className="p-2 text-gray-400">✕</button>
@@ -97,13 +98,13 @@ export const SimpleExpenseForm: React.FC<SimpleExpenseFormProps> = ({ currentUse
                     </div>
 
                     <div>
-                        <label className={labelCls}>Link to Order (Optional)</label>
+                        <label className={labelCls}>Link to Order</label>
                         <select 
                             value={orderId} 
                             onChange={e => setOrderId(e.target.value)} 
                             className={inputCls + " text-sm"}
                         >
-                            <option value="">No Order Reference</option>
+                            <option value="">Select an Order...</option>
                             {orders.map(o => (
                                 <option key={o.id} value={o.id}>{o.order_number} — {o.style_number}</option>
                             ))}
@@ -116,10 +117,10 @@ export const SimpleExpenseForm: React.FC<SimpleExpenseFormProps> = ({ currentUse
                     <button onClick={onClose} className="flex-1 py-4 text-gray-500 font-bold rounded-2xl">Cancel</button>
                     <button
                         onClick={handleCreate}
-                        disabled={!description.trim() || !amount || saving}
+                        disabled={!description.trim() || !amount || !orderId || saving}
                         className="flex-[2] py-4 bg-[#008069] text-white font-bold rounded-2xl shadow-lg hover:bg-[#006a57] disabled:opacity-40 transition-all"
                     >
-                        {saving ? 'Recording...' : 'Record Cash Expense 💸'}
+                        {saving ? 'Recording...' : 'Add new Quick Expense 💸'}
                     </button>
                 </div>
             </div>

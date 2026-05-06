@@ -7,7 +7,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { User, Order, Invoice, DeliveryChallan, InwardChallan, Expense, hasPermission } from '../../types';
 import { api } from '../../supabaseAPI';
 import { SubScreenHeader, StatusBadge, fmtDate, fmtAmount } from './shared';
@@ -21,6 +21,7 @@ interface OrderFinancialOverviewProps {
 
 export const OrderFinancialOverview: React.FC<OrderFinancialOverviewProps> = ({ currentUser, order }) => {
     const navigate = useNavigate();
+    const qc = useQueryClient();
     const canViewFinancials = hasPermission(currentUser.role, 'VIEW_FINANCIALS');
     // ── Queries ────────────────────────────────────────────────────────────────
     // Improved fetching: Some docs are linked by order.id (UUID), some by order.order_number (String)
@@ -65,14 +66,21 @@ export const OrderFinancialOverview: React.FC<OrderFinancialOverviewProps> = ({ 
     const netProfit = salesTotal - (purchaseTotal + expenseTotal);
     const profitColor = netProfit > 0 ? 'text-green-600' : netProfit < 0 ? 'text-red-600' : 'text-gray-600';
 
+    const handleStatusUpdate = async (newStatus: string) => {
+        try {
+            await api.updateOrderStatus(order.id, newStatus as any);
+            qc.invalidateQueries({ queryKey: ['orders'] });
+        } catch (err: any) { alert(err.message); }
+    };
+
     // ── Render Helpers ─────────────────────────────────────────────────────────
     const renderCard = (icon: string, label: string, amount: number, color: string) => (
-        <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex flex-col gap-1">
-            <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg">{icon}</span>
-                <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider font-mono">{label}</span>
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col gap-1.5 transition-all active:scale-[0.98]">
+            <div className="flex items-center gap-2 mb-1 opacity-60">
+                <span className="text-xl">{icon}</span>
+                <span className="text-[11px] uppercase font-black text-gray-500 tracking-widest">{label}</span>
             </div>
-            <p className={`text-xl font-black ${color}`}>{fmtAmount(amount)}</p>
+            <p className={`text-2xl font-black ${color} tracking-tight`}>{fmtAmount(amount)}</p>
         </div>
     );
 
@@ -84,10 +92,27 @@ export const OrderFinancialOverview: React.FC<OrderFinancialOverviewProps> = ({ 
                 onBack={() => navigate(-1)} 
             />
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-6">
-                {/* 1. Profit Summary - Admin Only */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-5 pb-6">
+                {/* 1. Status Update Strip */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1">Order Status</p>
+                        <StatusBadge status={order.status} />
+                    </div>
+                    <select 
+                        value={order.status}
+                        onChange={(e) => handleStatusUpdate(e.target.value)}
+                        className="bg-gray-50 border-none rounded-xl px-4 py-2 text-sm font-bold text-[#008069] focus:ring-0 transition-all outline-none"
+                    >
+                        <option value="PENDING">Pending</option>
+                        <option value="IN_PROGRESS">Active</option>
+                        <option value="COMPLETED">Completed</option>
+                    </select>
+                </div>
+
+                {/* 2. Profit Summary - Admin Only */}
                 {currentUser.role === 'ADMIN' ? (
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 gap-3">
                         {renderCard('📈', 'Sales', salesTotal, 'text-[#008069]')}
                         {renderCard('📉', 'Bills', purchaseTotal, 'text-orange-600')}
                         {renderCard('💸', 'Expenses', expenseTotal, 'text-red-500')}
@@ -95,7 +120,7 @@ export const OrderFinancialOverview: React.FC<OrderFinancialOverviewProps> = ({ 
                     </div>
                 ) : null}
 
-                {/* 2. Inward Challans */}
+                {/* 3. Inward Challans */}
                 <section>
                     <h4 className="px-1 text-[13px] font-bold text-gray-600 uppercase tracking-widest mb-3 flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>

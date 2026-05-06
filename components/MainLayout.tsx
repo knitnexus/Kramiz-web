@@ -82,11 +82,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                 className={`flex flex-col items-center justify-center flex-1 h-full transition-all relative
                     ${isActive ? 'text-[#008069]' : 'text-gray-400 hover:text-gray-600'}`}
             >
-                <div className={`transition-transform duration-200 ${isActive ? 'scale-110' : 'hover:scale-105'}`}>
+                <div className={`transition-transform duration-200 ${isActive ? 'scale-110 mb-0.5' : 'hover:scale-105'}`}>
                     {icon}
                 </div>
-                <span className={`text-[10px] mt-1 font-medium ${isActive ? 'font-bold' : ''}`}>{label}</span>
-                {isActive && <div className="absolute top-0 w-8 h-1 bg-[#008069] rounded-b-full"></div>}
+                <span className={`text-[9px] uppercase tracking-tighter mt-0.5 font-bold ${isActive ? 'text-[#008069]' : 'text-gray-400'}`}>{label}</span>
+                {isActive && <div className="absolute top-0 w-6 h-1 bg-[#008069] rounded-b-full shadow-[0_1px_4px_rgba(0,128,105,0.4)]"></div>}
             </button>
         );
     };
@@ -123,8 +123,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             <div className="flex-1 flex flex-col h-full relative">
                 {/* Mobile Bottom Navigation */}
                 {!isInsideChat && (
-                    <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200 z-[100] px-2 safe-pb">
-                        <div className="flex h-full items-center">
+                    <div className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(68px+env(safe-area-inset-bottom))] bg-white/95 backdrop-blur-md border-t border-gray-100 z-[100] px-4 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)]">
+                        <div className="flex h-[68px] items-center">
                             <NavItem icon={icons.chats}     label="Chats"     isActive={isChats}     onClick={() => navigate('/chats')} />
                             <NavItem icon={icons.dashboard} label="Dashboard" isActive={isDashboard} onClick={() => navigate('/dashboard')} />
                             <NavItem icon={icons.settings}  label="Settings"  isActive={isSettingsTab || isSettings}  onClick={() => navigate('/settings')} />
@@ -133,12 +133,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                 )}
 
                 {/* Main Content Area */}
-                <div className={`flex-1 flex flex-col md:flex-row h-full w-full relative ${!isInsideChat ? 'pb-16 md:pb-0' : ''}`}>
+                <div className={`flex-1 flex flex-col md:flex-row h-full w-full relative min-w-0 ${!isInsideChat ? 'pb-[calc(68px+env(safe-area-inset-bottom))] md:pb-0' : ''}`}>
                     
                     {/* Sidebar: Chats List */}
                     <div className={`
                         ${isChats ? (groupId ? 'hidden md:block md:w-80 lg:w-96' : 'w-full md:w-80 lg:w-96') : 'hidden'}
-                        h-full border-r border-gray-200 bg-white
+                        h-full border-r border-gray-200 bg-white min-w-0 overflow-hidden
                     `}>
                         <Sidebar
                             currentUser={user}
@@ -156,7 +156,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                     </div>
 
                     {/* Main View Area */}
-                    <div className={`flex-1 h-full relative ${isChats && !groupId ? 'hidden md:flex' : 'flex'} ${isSettings ? 'w-full' : ''}`}>
+                    <div className={`flex-1 h-full relative min-w-0 ${isChats && !groupId ? 'hidden md:flex' : 'flex'} ${isSettings ? 'w-full' : ''}`}>
                         {children}
                     </div>
                 </div>

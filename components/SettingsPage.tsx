@@ -60,7 +60,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onLogou
 
             {/* RIGHT: sub-screen */}
             <div className={`
-                h-full overflow-hidden
+                h-full overflow-hidden min-w-0
                 ${!isRoot ? 'block flex-1' : 'hidden md:block md:flex-1'}
             `}>
                 <Routes>

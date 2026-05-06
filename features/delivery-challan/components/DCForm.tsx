@@ -20,6 +20,8 @@
 import React, { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../supabaseAPI';
+import { useContacts } from '../../contacts/useContacts';
+import { AddContactModal } from '../../contacts/components/AddContactModal';
 import { User, DCItem, Contact, Company, Order, DeliveryChallan } from '../../../types';
 import { ItemsTable } from './ItemsTable';
 
@@ -34,6 +36,14 @@ interface DCFormProps {
 const BLANK_ITEMS: DCItem[] = [{ description: '', quantity: 0, unit: 'KG' }];
 
 export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialData, onCreated, onClose }) => {
+    const { 
+        isAdding: isAddingContact, 
+        form: contactForm, 
+        setForm: setContactForm,
+        isGSTValid, isPINValid, handleGSTInput, handlePINInput,
+        openAdd: openAddContact, closeModal: closeContactModal, handleSave: saveContact,
+        isSaving: savingContact
+    } = useContacts(currentUser);
 
     // ── Form state ─────────────────────────────────────────────────────────────
     const [recipientSearch, setRecipientSearch]   = useState('');
@@ -115,6 +125,7 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
         if (!validItems.length) { alert('Add at least one item with description and quantity'); return; }
 
         if (!selectedRecipient) { alert('Please select a recipient from the list'); return; }
+        if (!orderId) { alert('Please select an Order to link this dispatch to'); return; }
 
         setSaving(true);
         try {
@@ -236,13 +247,28 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
                                         </button>
                                     ))
                                 )}
+                                {recipientSearch.trim().length > 0 && (
+                                    <button 
+                                        onClick={() => {
+                                            openAddContact();
+                                            setContactForm(f => ({ ...f, name: recipientSearch.trim() }));
+                                        }}
+                                        className="w-full text-left px-4 py-4 bg-[#f0f9f7] hover:bg-[#e7f3f1] flex items-center gap-3 transition-colors group"
+                                    >
+                                        <div className="w-8 h-8 rounded-lg bg-[#008069] text-white flex items-center justify-center text-lg font-bold group-hover:scale-110 transition-transform">+</div>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-900">Add "{recipientSearch}" as Contact</p>
+                                            <p className="text-[10px] text-[#008069] font-regular tracking-widest">Quick Create Partner</p>
+                                        </div>
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
 
                     {/* ─ Section 2: Order Refs ────────────────────────────── */}
                     <div>
-                        <SectionTitle emoji="📋" title="Order References" subtitle="Both optional" />
+                        <SectionTitle emoji="📋" title="Order Reference" subtitle="Order selection is compulsory" />
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">Your Order No.</label>
@@ -345,6 +371,21 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
                     </button>
                 </div>
             </div>
+
+            {isAddingContact && (
+                <AddContactModal
+                    form={contactForm}
+                    setForm={setContactForm}
+                    isEditing={false}
+                    isSaving={savingContact}
+                    isGSTValid={isGSTValid}
+                    isPINValid={isPINValid}
+                    handleGSTInput={handleGSTInput}
+                    handlePINInput={handlePINInput}
+                    onSave={saveContact}
+                    onClose={closeContactModal}
+                />
+            )}
         </div>
     );
 };

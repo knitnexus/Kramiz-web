@@ -122,7 +122,7 @@ export interface OrderMember {
   added_at?: string;
 }
 
-export type ChannelType = 'OVERVIEW' | 'VENDOR';
+export type ChannelType = 'OVERVIEW' | 'VENDOR' | 'INTERNAL';
 
 export interface Channel {
   id: string;

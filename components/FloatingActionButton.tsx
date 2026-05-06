@@ -57,8 +57,8 @@ export const FloatingActionButton: React.FC<FABProps> = ({ currentUser, visible 
 
     const actions = [
         canOrder       && { key: 'ORDER',   icon: '📦', label: 'Add New Order',         color: 'bg-[#008069]' },
-        canPurchaseInv && { key: 'P_INV',   icon: '📥', label: 'Record Vendor Bill',    color: 'bg-orange-800' },
-        canExpense     && { key: 'EXPENSE', icon: '💸', label: 'Record Quick Expense',   color: 'bg-cyan-600' },
+        canPurchaseInv && { key: 'P_INV',   icon: '📥', label: 'Add new Purchase Inv.',    color: 'bg-orange-800' },
+        canExpense     && { key: 'EXPENSE', icon: '💸', label: 'Add new Quick Expense',   color: 'bg-cyan-600' },
         canSalesInv    && { key: 'S_INV',   icon: '🧾', label: 'Add New Sales Inv',     color: 'bg-indigo-600' },
         canDC          && { key: 'DC',      icon: '🚚', label: 'Add New Delivery Challan', color: 'bg-blue-600' },
         canIC          && { key: 'IC',      icon: '📦', label: 'Add New Inward Challan',   color: 'bg-teal-600' },

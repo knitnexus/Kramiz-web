@@ -55,7 +55,7 @@ export const SettingsListPanel: React.FC<ListPanelProps> = ({
     const canDeleteOrg = hasPermission(currentUser.role, 'DELETE_ORG');
 
     return (
-        <div className="flex flex-col h-full bg-[#f0f2f5]">
+        <div className="flex flex-col h-full bg-[#f0f2f5] min-w-0 overflow-hidden">
             <div className="bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between shadow-sm safe-pt">
                 <h1 className="text-[17px] font-semibold text-gray-900">Settings</h1>
                 <button onClick={onLogout} className="text-[13px] text-red-500 font-medium px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">

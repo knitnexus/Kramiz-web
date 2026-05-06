@@ -8,6 +8,8 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../supabaseAPI';
+import { useContacts } from '../../contacts/useContacts';
+import { AddContactModal } from '../../contacts/components/AddContactModal';
 import { User, DCItem, Company, Order, Contact, DeliveryChallan, InwardChallan } from '../../../types';
 import { ItemsTable } from '../../delivery-challan/components/ItemsTable';
 
@@ -30,6 +32,14 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
     onCreated, 
     onClose 
 }) => {
+    const { 
+        isAdding: isAddingContact, 
+        form: contactForm, 
+        setForm: setContactForm,
+        isGSTValid, isPINValid, handleGSTInput, handlePINInput,
+        openAdd: openAddContact, closeModal: closeContactModal, handleSave: saveContact,
+        isSaving: savingContact
+    } = useContacts(currentUser);
     // ── Form state ─────────────────────────────────────────────────────────────
     const [senderSearch, setSenderSearch]       = useState('');
     const [selectedSender, setSelectedSender]   = useState<{ id: string, companyId?: string, type: 'partner' | 'contact', name: string } | null>(
@@ -118,6 +128,7 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
         const validItems = items.filter(it => it.description.trim() && it.quantity > 0);
         if (!validItems.length) { alert('Add at least one item with description and quantity'); return; }
         if (!selectedSender) { alert('Please select the sender from the list'); return; }
+        if (!orderId) { alert('Please select an Order to link this receipt to'); return; }
 
         setSaving(true);
         try {
@@ -229,6 +240,21 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
                                         </button>
                                     ))
                                 )}
+                                {senderSearch.trim().length > 0 && (
+                                    <button 
+                                        onClick={() => {
+                                            openAddContact();
+                                            setContactForm(f => ({ ...f, name: senderSearch.trim() }));
+                                        }}
+                                        className="w-full text-left px-4 py-4 bg-[#f0f9f7] hover:bg-[#e7f3f1] flex items-center gap-3 transition-colors group"
+                                    >
+                                        <div className="w-8 h-8 rounded-lg bg-[#008069] text-white flex items-center justify-center text-lg font-bold group-hover:scale-110 transition-transform">+</div>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-900">Add "{senderSearch}" as Contact</p>
+                                            <p className="text-[10px] text-[#008069] font-regular tracking-widest">Quick Create Partner</p>
+                                        </div>
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -296,6 +322,21 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
                     </button>
                 </div>
             </div>
+
+            {isAddingContact && (
+                <AddContactModal
+                    form={contactForm}
+                    setForm={setContactForm}
+                    isEditing={false}
+                    isSaving={savingContact}
+                    isGSTValid={isGSTValid}
+                    isPINValid={isPINValid}
+                    handleGSTInput={handleGSTInput}
+                    handlePINInput={handlePINInput}
+                    onSave={saveContact}
+                    onClose={closeContactModal}
+                />
+            )}
         </div>
     );
 };

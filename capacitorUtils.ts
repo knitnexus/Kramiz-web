@@ -15,7 +15,7 @@ import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { StatusBar, Style as StatusBarStyle } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { Keyboard } from '@capacitor/keyboard';
-import { App } from '@capacitor/app';
+export { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { Share } from '@capacitor/share';
 import { Device } from '@capacitor/device';

@@ -28,6 +28,7 @@ export const QuickOrderForm: React.FC<QuickOrderFormProps> = ({ currentUser, onC
         try {
             await api.createOrder(currentUser, orderNo.trim(), styleNo.trim(), []);
             qc.invalidateQueries({ queryKey: ['orders'] });
+            qc.invalidateQueries({ queryKey: ['channels'] });
             alert(`Order #${orderNo} created!`);
             onClose();
         } catch (e: any) {

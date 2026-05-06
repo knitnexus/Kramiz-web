@@ -10,6 +10,8 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { User, Company, Contact, GSTType, GSTRate, Order, Invoice, DeliveryChallan } from '../../../types';
 import { api } from '../../../supabaseAPI';
+import { useContacts } from '../../contacts/useContacts';
+import { AddContactModal } from '../../contacts/components/AddContactModal';
 
 interface QuickSalesInvoiceFormProps {
     currentUser: User;
@@ -20,6 +22,14 @@ interface QuickSalesInvoiceFormProps {
 
 export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ currentUser, initialData, onCreated, onClose }) => {
     const qc = useQueryClient();
+    const { 
+        isAdding: isAddingContact, 
+        form: contactForm, 
+        setForm: setContactForm,
+        isGSTValid, isPINValid, handleGSTInput, handlePINInput,
+        openAdd: openAddContact, closeModal: closeContactModal, handleSave: saveContact,
+        isSaving: savingContact
+    } = useContacts(currentUser);
     
     // --- State ---
     const [buyerSearch, setBuyerSearch]       = useState('');
@@ -147,6 +157,7 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
     // --- Submit ---
     const handleCreate = async () => {
         if (!selectedBuyer) return alert('Please select a buyer from the list');
+        if (!orderId) return alert('Please select an Order to link this invoice to');
         const validItems = items.filter(it => it.description && it.quantity && it.rate);
         if (validItems.length === 0) return alert('Add at least one complete line item');
         
@@ -253,6 +264,21 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
                                         </button>
                                     ))
                                 )}
+                                {buyerSearch.trim().length > 0 && (
+                                    <button 
+                                        onClick={() => {
+                                            openAddContact();
+                                            setContactForm(f => ({ ...f, name: buyerSearch.trim() }));
+                                        }}
+                                        className="w-full text-left px-4 py-4 bg-[#f0f9f7] hover:bg-[#e7f3f1] flex items-center gap-3 transition-colors group"
+                                    >
+                                        <div className="w-8 h-8 rounded-lg bg-[#008069] text-white flex items-center justify-center text-lg font-bold group-hover:scale-110 transition-transform">+</div>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-900">Add "{buyerSearch}" as Contact</p>
+                                            <p className="text-[10px] text-[#008069] font-regular tracking-widest">Quick Create Partner</p>
+                                        </div>
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -263,7 +289,7 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
                             <input type="date" value={docDate} onChange={e => setDocDate(e.target.value)} className={inputCls} />
                         </div>
                         <div className="w-full">
-                            <label className={labelCls}>Link Order (Optional)</label>
+                            <label className={labelCls}>Link Order</label>
                             <select value={orderId} onChange={e => { setOrderId(e.target.value); setSelectedDCIds([]); }} className={inputCls}>
                                 <option value="">Select Order...</option>
                                 {orders.map(o => (
@@ -409,7 +435,7 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
                     <button onClick={onClose} className="flex-1 py-3 text-gray-500 font-semibold rounded-2xl hover:bg-gray-100 transition-all">Cancel</button>
                     <button
                         onClick={handleCreate}
-                        disabled={!selectedBuyer || items.some(it => !it.description || !it.quantity || !it.rate) || saving}
+                        disabled={!selectedBuyer || !orderId || items.some(it => !it.description || !it.quantity || !it.rate) || saving}
                         className="flex-[2] py-3 bg-[#008069] text-white font-bold rounded-2xl shadow-lg hover:shadow-xl hover:bg-[#006a57] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
                     >
                         {saving ? (
@@ -418,6 +444,21 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
                     </button>
                 </div>
             </div>
+
+            {isAddingContact && (
+                <AddContactModal
+                    form={contactForm}
+                    setForm={setContactForm}
+                    isEditing={false}
+                    isSaving={savingContact}
+                    isGSTValid={isGSTValid}
+                    isPINValid={isPINValid}
+                    handleGSTInput={handleGSTInput}
+                    handlePINInput={handlePINInput}
+                    onSave={saveContact}
+                    onClose={closeContactModal}
+                />
+            )}
         </div>
     );
 };

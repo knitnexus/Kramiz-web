@@ -10,6 +10,8 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { User, Company, Contact } from '../../../types';
 import { api } from '../../../supabaseAPI';
+import { useContacts } from '../../contacts/useContacts';
+import { AddContactModal } from '../../contacts/components/AddContactModal';
 
 interface QuickGroupFormProps {
     orderId:     string;
@@ -19,6 +21,14 @@ interface QuickGroupFormProps {
 
 export const QuickGroupForm: React.FC<QuickGroupFormProps> = ({ orderId, currentUser, onClose }) => {
     const qc = useQueryClient();
+    const { 
+        isAdding: isAddingContact, 
+        form: contactForm, 
+        setForm: setContactForm,
+        isGSTValid, isPINValid, handleGSTInput, handlePINInput,
+        openAdd: openAddContact, closeModal: closeContactModal, handleSave: saveContact,
+        isSaving: savingContact
+    } = useContacts(currentUser);
     const [name, setName]         = useState('');
     const [selectedPartner, setSelectedPartner] = useState<{id: string, type: 'COMPANY' | 'CONTACT' | 'INTERNAL'} | null>(null);
     const [saving, setSaving]     = useState(false);
@@ -188,10 +198,22 @@ export const QuickGroupForm: React.FC<QuickGroupFormProps> = ({ orderId, current
                                 </div>
                             )}
 
-                            {!isLoading && filteredAccepted.length === 0 && filteredContacts.length === 0 && search && (
-                                <p className="py-4 text-center text-xs text-gray-400 italic">No partners match "{search}"</p>
-                            )}
-                        </div>
+                                {!isLoading && filteredAccepted.length === 0 && filteredContacts.length === 0 && search && (
+                                    <button 
+                                        onClick={() => {
+                                            openAddContact();
+                                            setContactForm(f => ({ ...f, name: search.trim() }));
+                                        }}
+                                        className="w-full text-left px-4 py-4 bg-orange-50 hover:bg-orange-100 flex items-center gap-3 transition-colors group rounded-2xl"
+                                    >
+                                        <div className="w-8 h-8 rounded-lg bg-orange-600 text-white flex items-center justify-center text-lg font-bold group-hover:scale-110 transition-transform">+</div>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-900">Add "{search}" as Contact</p>
+                                            <p className="text-[10px] text-orange-600 font-regular tracking-widest">Quick Create Partner</p>
+                                        </div>
+                                    </button>
+                                )}
+                            </div>
                     </div>
                 </div>
 
@@ -206,6 +228,21 @@ export const QuickGroupForm: React.FC<QuickGroupFormProps> = ({ orderId, current
                     </button>
                 </div>
             </div>
+
+            {isAddingContact && (
+                <AddContactModal
+                    form={contactForm}
+                    setForm={setContactForm}
+                    isEditing={false}
+                    isSaving={savingContact}
+                    isGSTValid={isGSTValid}
+                    isPINValid={isPINValid}
+                    handleGSTInput={handleGSTInput}
+                    handlePINInput={handlePINInput}
+                    onSave={saveContact}
+                    onClose={closeContactModal}
+                />
+            )}
         </div>
     );
 };

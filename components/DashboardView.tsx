@@ -65,14 +65,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser }) => 
     const screenProps = { currentUser };
 
     const ListPanel = (
-        <div className="flex flex-col h-full w-full bg-[#f0f2f5]">
-            <div className="bg-white border-b border-gray-100 px-5 pt-5 pb-4 shadow-sm">
-                <p className="text-[11px] text-gray-400 mb-1">
-                    {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </p>
-                <h1 className="text-[18px] font-semibold text-gray-900">
-                    Hi, {currentUser.name.split(' ')[0]} 👋
-                </h1>
+        <div className="flex flex-col h-full w-full bg-[#f0f2f5] min-w-0 overflow-hidden">
+            <div className="bg-white border-b border-gray-100 px-5 pt-[calc(20px+env(safe-area-inset-top))] pb-4 shadow-sm flex justify-between items-center">
+                <div>
+                    <p className="text-[11px] text-gray-400 mb-1">
+                        {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </p>
+                    <h1 className="text-[18px] font-semibold text-gray-900">
+                        Hi, {currentUser.name.split(' ')[0]} 👋
+                    </h1>
+                </div>
+                <div className="h-10 w-24 flex items-center justify-end">
+                    <img src="/logo_v2.png" alt="Kramiz" className="h-full object-contain" />
+                </div>
             </div>
 
             {/* GST Update Prompt for Admins */}
@@ -160,7 +165,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser }) => 
             <div className={`h-full flex-shrink-0 border-r border-gray-200 bg-[#f0f2f5] ${!isRoot ? 'hidden md:block md:w-72 lg:w-80' : 'block w-full md:w-72 lg:w-80'}`}>
                 {ListPanel}
             </div>
-            <div className={`h-full overflow-hidden ${!isRoot ? 'block flex-1' : 'hidden md:block md:flex-1'}`}>
+            <div className={`h-full overflow-hidden min-w-0 ${!isRoot ? 'block flex-1' : 'hidden md:block md:flex-1'}`}>
                 <RightContent />
             </div>
         </div>
