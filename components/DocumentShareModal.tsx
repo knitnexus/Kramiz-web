@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { User, Channel, Company } from '../types';
+import { User, Channel, Company, Order } from '../types';
 import { api } from '../supabaseAPI';
 import { shareFile } from '../capacitorUtils';
 import { Modal } from './Modal';
@@ -45,12 +45,11 @@ export const DocumentShareModal: React.FC<DocumentShareModalProps> = ({
         if (!searchQuery.trim()) return channels;
         const q = searchQuery.toLowerCase();
         return channels.filter(ch => {
-            const order = (ch as any).order || null; // Some channels might have order pre-fetched or need lookup
-            // If order not in ch, we should have fetched it in the query
-            return (
-                ch.name.toLowerCase().includes(q) ||
-                order?.order_number?.toLowerCase().includes(q)
-            );
+            const order = (ch as any).order || null;
+            const nameMatch = ch.name.toLowerCase().includes(q);
+            const orderMatch = order?.order_number?.toLowerCase().includes(q);
+            const styleMatch = order?.style_number?.toLowerCase().includes(q);
+            return nameMatch || orderMatch || styleMatch;
         });
     }, [channels, searchQuery]);
 
@@ -65,7 +64,9 @@ export const DocumentShareModal: React.FC<DocumentShareModalProps> = ({
         return Object.values(groups).sort((a, b) => {
             if (!a.order) return 1;
             if (!b.order) return -1;
-            return (b.order.created_at || '').localeCompare(a.order.created_at || '');
+            const dateA = a.order.created_at || '';
+            const dateB = b.order.created_at || '';
+            return dateB.localeCompare(dateA);
         });
     }, [filteredChannels]);
 
