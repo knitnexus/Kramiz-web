@@ -23,7 +23,8 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({ partner }) => {
             {/* Info */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                    <p className="font-bold text-gray-900 truncate">{partner.name}</p>
+                    <p className="font-bold text-gray-900 break-words line-clamp-2">{partner.name}</p>
+
                     <span className="shrink-0 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">
                         ✓ Connected
                     </span>

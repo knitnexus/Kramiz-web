@@ -26,66 +26,23 @@ import { KramizSharePopup } from './components/KramizSharePopup';
 
 import { Outlet } from 'react-router-dom';
 
-const AuthenticatedLayout: React.FC<{ user: User; onLogout: () => void }> = ({ user, onLogout }) => {
+const AuthenticatedLayout: React.FC<{ 
+    user: User; 
+    onLogout: () => void;
+    onboarding: returnTypeUseOnboarding;
+}> = ({ user, onLogout, onboarding }) => {
     const queryClient = useQueryClient();
     const location = useLocation();
     const isSettings = location.pathname.startsWith('/settings');
-
     const { groupId } = useParams();
+
     const {
         deferredPrompt, setDeferredPrompt, showInstallPopup,
         setShowInstallPopup, handleInstall,
         pendingShare, setPendingShare
-    } = useOnboarding();
+    } = onboarding;
 
     useGlobalNotifications(user, groupId);
-
-    useEffect(() => {
-        const handleKramizShare = (event: any) => {
-            try {
-                const data = typeof event.detail === 'string' ? JSON.parse(event.detail) : event.detail;
-                if (data && data.uri) {
-                    setPendingShare({ type: 'file', content: 'File from external app', url: data.uri });
-                }
-            } catch (err) { console.error('[Native Share] Failed to parse share data:', err); }
-        };
-
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                const lastHidden = (window as any).lastHiddenTime || 0;
-                // Refresh data if away for more than 10 seconds (much more aggressive)
-                if (Date.now() - lastHidden > 10000) {
-                    console.log('[App] Auto-refreshing data...');
-                    queryClient.invalidateQueries();
-                }
-            } else {
-                (window as any).lastHiddenTime = Date.now();
-            }
-        };
-
-        if (isNative) {
-            window.addEventListener('kramizShareIntent' as any, handleKramizShare);
-            
-            // Catch shares during cold starts or deep links
-            const urlListener = CapacitorApp.addListener('appUrlOpen', (data) => {
-                console.log('[App] Received external URL/File:', data.url);
-                if (data.url.includes('share') || data.url.startsWith('file://')) {
-                    setPendingShare({ type: 'file', content: 'Shared Content', url: data.url });
-                }
-            });
-
-            return () => {
-                window.removeEventListener('kramizShareIntent' as any, handleKramizShare);
-                urlListener.then(l => l.remove());
-                document.removeEventListener('visibilitychange', handleVisibilityChange);
-            };
-        }
-        
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        return () => {
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-        };
-    }, [queryClient, setPendingShare]);
 
     return (
         <MainLayout
@@ -117,19 +74,25 @@ const AuthenticatedLayout: React.FC<{ user: User; onLogout: () => void }> = ({ u
                 </div>
             )}
 
-
-
             {pendingShare && (
                 <KramizSharePopup
                     currentUser={user}
                     content={{ type: 'file', fileUrl: pendingShare.url, fileName: pendingShare.content || 'Shared File' }}
                     onClose={() => setPendingShare(null)}
-                    onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['channels'] }); }}
+                    onSuccess={() => { 
+                        queryClient.invalidateQueries({ queryKey: ['channels'] }); 
+                    }}
+
                 />
             )}
+
         </MainLayout>
     );
 };
+
+// Helper type for onboarding hook return value
+type returnTypeUseOnboarding = ReturnType<typeof useOnboarding>;
+
 
 const ChatRoomWrapper: React.FC<{ user: User }> = ({ user }) => {
     const { groupId } = useParams();
@@ -174,9 +137,10 @@ const ChatRoomWrapper: React.FC<{ user: User }> = ({ user }) => {
 
 const AppRoutes: React.FC<{
     user: User | null;
+    onboarding: returnTypeUseOnboarding;
     handleLogin: (loggedInUser: User, rememberMe: boolean) => void;
     handleLogout: () => void;
-}> = ({ user, handleLogin, handleLogout }) => {
+}> = ({ user, onboarding, handleLogin, handleLogout }) => {
     const navigate = useNavigate();
 
     return (
@@ -187,7 +151,7 @@ const AppRoutes: React.FC<{
             <Route path="/signup" element={user ? <Navigate to="/chats" replace /> : <Signup onBack={() => navigate('/')} onSignupSuccess={() => navigate('/login')} />} />
 
             {/* Protected Routes */}
-            <Route element={user ? <AuthenticatedLayout user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />}>
+            <Route element={user ? <AuthenticatedLayout user={user} onboarding={onboarding} onLogout={handleLogout} /> : <Navigate to="/" replace />}>
                 <Route path="/dashboard/*" element={<DashboardView currentUser={user} />} />
                 <Route path="/chats" element={<WelcomeView />} />
                 <Route path="/group/:groupId" element={<ChatRoomWrapper user={user} />} />
@@ -199,10 +163,74 @@ const AppRoutes: React.FC<{
     );
 };
 
+
 const App: React.FC = () => {
+    const queryClient = useQueryClient();
     const {
         user, isRestoringSession, handleLogin, handleLogout
     } = useAppSync();
+
+    const onboarding = useOnboarding();
+    const { setPendingShare } = onboarding;
+
+    useEffect(() => {
+        const handleKramizShare = (event: any) => {
+            console.log('[App] Native share intent event received');
+            try {
+                const data = typeof event.detail === 'string' ? JSON.parse(event.detail) : event.detail;
+                if (data && data.uri) {
+                    // Strategic delay: ensures the app has finished booting/restoring session
+                    // before we try to show the modal, which fixes the "needs interaction" bug.
+                    setTimeout(() => {
+                        console.log('[App] Setting pending share from native intent');
+                        setPendingShare({ type: 'file', content: 'File from external app', url: data.uri });
+                    }, 800);
+                }
+            } catch (err) { console.error('[Native Share] Failed to parse share data:', err); }
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                const lastHidden = (window as any).lastHiddenTime || 0;
+                if (Date.now() - lastHidden > 10000) {
+                    console.log('[App] Auto-refreshing data...');
+                    queryClient.invalidateQueries();
+                }
+            } else {
+                (window as any).lastHiddenTime = Date.now();
+            }
+        };
+
+        if (isNative) {
+            // Listen for custom native events (from MainActivity)
+            window.addEventListener('kramizShareIntent' as any, handleKramizShare);
+            
+            // Catch shares during cold starts or deep links
+            const urlListener = CapacitorApp.addListener('appUrlOpen', (data) => {
+                console.log('[App] Received external URL/File:', data.url);
+                if (data.url.includes('share') || data.url.startsWith('file://') || data.url.startsWith('content://')) {
+                    setTimeout(() => {
+                        console.log('[App] Setting pending share from appUrlOpen');
+                        setPendingShare({ type: 'file', content: 'Shared Content', url: data.url });
+                    }, 1000);
+                }
+            });
+
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+
+
+            return () => {
+                window.removeEventListener('kramizShareIntent' as any, handleKramizShare);
+                urlListener.then(l => l.remove());
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+            };
+        }
+        
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [queryClient, setPendingShare]);
 
 
     if (isRestoringSession) {
@@ -223,12 +251,14 @@ const App: React.FC = () => {
         <HashRouter>
             <AppRoutes
                 user={user}
+                onboarding={onboarding}
                 handleLogin={handleLogin}
                 handleLogout={handleLogout}
             />
         </HashRouter>
     );
 };
+
 
 export default App;
 

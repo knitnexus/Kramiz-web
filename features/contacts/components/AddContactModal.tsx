@@ -15,8 +15,10 @@
  * Used by: features/contacts/ContactsPage.tsx
  */
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { ContactForm } from '../useContacts';
+import { aiApi } from '../../../api/ai';
+import { User } from '../../../types';
 
 interface AddContactModalProps {
     form:            ContactForm;
@@ -29,6 +31,7 @@ interface AddContactModalProps {
     handlePINInput:  (v: string) => void;
     onSave:          () => void;
     onClose:         () => void;
+    currentUser:     User;
 }
 
 const Field: React.FC<{ label: string; children: React.ReactNode; hint?: string }> = ({ label, children, hint }) => (
@@ -51,9 +54,40 @@ const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { hasError?:
 export const AddContactModal: React.FC<AddContactModalProps> = ({
     form, setForm, isEditing, isSaving,
     isGSTValid, isPINValid, handleGSTInput, handlePINInput,
-    onSave, onClose,
+    onSave, onClose, currentUser
 }) => {
     const set = (patch: Partial<ContactForm>) => setForm(f => ({ ...f, ...patch }));
+    const aiScanInputRef = useRef<HTMLInputElement>(null);
+    const [isScanning, setIsScanning] = useState(false);
+
+    const handleAIScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsScanning(true);
+        try {
+            const res = await aiApi.scanDocument(currentUser, file, 'VISITING_CARD');
+            if (res.success && res.data) {
+                const { name, company, phone, email, designation, gst_number, address, state, pincode } = res.data;
+                set({
+                    name: company || name || '',
+                    phone: phone?.replace(/\D/g, '').slice(-10) || '',
+                    gst_number: gst_number || '',
+                    address: address || '',
+                    state: state || '',
+                    pincode: pincode || '',
+                    notes: [designation, email, name].filter(Boolean).join(' | ')
+                });
+            } else {
+                alert(res.error || 'Failed to scan visiting card');
+            }
+        } catch (err: any) {
+            alert('AI Scanning Error: ' + err.message);
+        } finally {
+            setIsScanning(false);
+            if (aiScanInputRef.current) aiScanInputRef.current.value = '';
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4 pb-0 sm:pb-4 bg-black/60 backdrop-blur-sm">
@@ -78,6 +112,32 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
 
                 {/* Form */}
                 <div className="px-6 py-4 space-y-3 max-h-[70vh] overflow-y-auto">
+                    
+                    {!isEditing && (
+                        <div className="bg-[#f0f9f7] p-4 rounded-2xl border border-[#008069]/10 flex items-center justify-between gap-4 mb-2">
+                            <div className="flex-1">
+                                <h4 className="text-[#008069] font-black text-[11px] uppercase tracking-wider flex items-center gap-2">
+                                    <span className="text-lg">✨</span> AI Visiting Card Scan
+                                </h4>
+                                <p className="text-gray-500 text-[10px] font-medium leading-tight mt-1">Photo the visiting card and I'll fill everything.</p>
+                            </div>
+                            <button 
+                                onClick={() => aiScanInputRef.current?.click()}
+                                disabled={isScanning}
+                                className="bg-[#008069] text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#006a57] active:scale-95 transition-all shadow-sm disabled:opacity-50"
+                            >
+                                {isScanning ? 'Scanning...' : 'Scan Now'}
+                            </button>
+                            <input 
+                                ref={aiScanInputRef}
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className="hidden"
+                                onChange={handleAIScan}
+                            />
+                        </div>
+                    )}
 
                     <Field label="Company Name *">
                         <Input
@@ -166,7 +226,8 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+                <div className="px-6 pt-4 pb-[calc(20px+env(safe-area-inset-bottom))] sm:pb-5 border-t border-gray-100 flex gap-3 bg-white">
+
                     <button
                         onClick={onClose}
                         className="flex-1 py-3 border-2 border-gray-200 text-gray-500 rounded-2xl font-black text-sm hover:border-gray-300 transition-all"

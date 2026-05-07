@@ -39,11 +39,14 @@ export const ContactCard: React.FC<ContactCardProps> = ({
         .toUpperCase();
 
     return (
-        <div className={`bg-white rounded-2xl p-4 shadow-sm border transition-all ${
+        <div 
+            onClick={() => canManage && onEdit(contact)}
+            className={`bg-white rounded-2xl p-4 shadow-sm border transition-all active:scale-[0.98] cursor-pointer ${
             isLinked  ? 'border-green-200 bg-green-50/30' :
             isInvited ? 'border-amber-100' :
                         'border-gray-100'
         }`}>
+
             <div className="flex flex-col sm:flex-row sm:items-start gap-3">
 
                 <div className="flex items-start gap-3 flex-1 min-w-0 w-full">
@@ -57,7 +60,7 @@ export const ContactCard: React.FC<ContactCardProps> = ({
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                            <p className="font-black text-gray-900 text-sm truncate">{contact.name}</p>
+                            <p className="font-black text-gray-900 text-sm break-words line-clamp-2">{contact.name}</p>
 
                             {contact.isPartner && (
                                 <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full uppercase tracking-widest">
@@ -75,41 +78,37 @@ export const ContactCard: React.FC<ContactCardProps> = ({
                                 </span>
                             )}
                         </div>
-
-                        {/* Meta row */}
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-400 font-medium">
-                            {contact.gst_number && (
-                                <span className="font-mono tracking-wider">{contact.gst_number}</span>
+                        {/* Simplified Details */}
+                        <div className="mt-0.5 space-y-1">
+                            {contact.phone && (
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-lg bg-gray-50 flex items-center justify-center text-xs shrink-0">📞</div>
+                                    <p className="text-[14px] text-gray-700 font-bold truncate tracking-tight">{contact.phone}</p>
+                                </div>
                             )}
-                            {contact.phone && <span className="whitespace-nowrap">📞 {contact.phone}</span>}
-                            {contact.state && <span className="whitespace-nowrap">📍 {contact.state}{contact.pincode ? ` — ${contact.pincode}` : ''}</span>}
+                            {(contact.gst_number || contact.linked_company?.gst_number) && (
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-lg bg-gray-50 flex items-center justify-center text-[10px] shrink-0 font-bold text-gray-400">GST</div>
+                                    <p className="text-[12px] font-mono tracking-wider text-gray-500 uppercase truncate font-medium">
+                                        {contact.gst_number || contact.linked_company?.gst_number}
+                                    </p>
+                                </div>
+                            )}
+
                         </div>
 
-                        {contact.address && (
-                            <p className="text-xs text-gray-400 mt-0.5 break-words line-clamp-2">{contact.address}</p>
-                        )}
-                        {contact.notes && (
-                            <p className="text-xs text-gray-400 italic mt-0.5 truncate">{contact.notes}</p>
-                        )}
                     </div>
                 </div>
 
+
                 {/* Actions (admin only) */}
+
                 {canManage && (
                     <div className="flex flex-row sm:flex-col items-center justify-between sm:justify-start sm:items-end gap-2 sm:gap-1.5 flex-shrink-0 w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t border-gray-100 sm:border-0">
                         <div className="flex-1 sm:hidden"></div> {/* Spacer on mobile */}
                         <div className="flex gap-1 order-2 sm:order-1">
                             <button
-                                onClick={() => onEdit(contact)}
-                                className="p-1.5 text-gray-400 hover:text-[#008069] hover:bg-green-50 rounded-lg transition-all"
-                                title="Edit"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                            </button>
-                            <button
-                                onClick={() => onDelete(contact)}
+                                onClick={(e) => { e.stopPropagation(); onDelete(contact); }}
                                 className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                                 title="Delete"
                             >
@@ -118,6 +117,7 @@ export const ContactCard: React.FC<ContactCardProps> = ({
                                 </svg>
                             </button>
                         </div>
+
                         
                         {/* Primary action */}
                         {contact.isPartner ? (
@@ -130,18 +130,19 @@ export const ContactCard: React.FC<ContactCardProps> = ({
                             </span>
                         ) : isLinked ? (
                             <button
-                                onClick={() => onConnect(contact)}
+                                onClick={(e) => { e.stopPropagation(); onConnect(contact); }}
                                 className="px-3 py-1.5 bg-green-600 text-white text-xs font-black rounded-lg hover:bg-green-700 transition-all whitespace-nowrap order-1 sm:order-2"
                             >
                                 Connect →
                             </button>
                         ) : contact.phone ? (
                             <button
-                                onClick={() => onInvite(contact)}
+                                onClick={(e) => { e.stopPropagation(); onInvite(contact); }}
                                 className="px-3 py-1.5 bg-[#25D366] text-white text-xs font-black rounded-lg hover:bg-[#128C7E] transition-all whitespace-nowrap order-1 sm:order-2"
                             >
                                 {isInvited ? 'Resend Invite' : 'Invite to Kramiz'}
                             </button>
+
                         ) : null}
                     </div>
                 )}

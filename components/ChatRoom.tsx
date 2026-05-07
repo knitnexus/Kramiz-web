@@ -15,6 +15,7 @@ import { QuickPurchaseInvoiceForm } from '@/features/invoices/components/QuickPu
 import { SimpleExpenseForm } from '@/features/invoices/components/SimpleExpenseForm';
 import { ChallanDetailView } from '@/features/delivery-challan/components/ChallanDetailView';
 import { QuickTaskForm } from '@/features/tasks/components/QuickTaskForm';
+import { aiApi } from '../api/ai';
 
 interface ChatRoomProps {
     currentUser: User;
@@ -28,7 +29,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
     const {
         messages, members, loading, sendMessage, updateStatus,
         addMembers, deleteMessage, hasPerformedInitialScroll,
-        setHasPerformedInitialScroll, initialLastReadAt
+        setHasPerformedInitialScroll, initialLastReadAt,
+        removeMember, updateChannelName
     } = useChat(currentUser, channel);
 
     const [newMessage, setNewMessage] = useState('');
@@ -76,6 +78,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
     const [viewingDoc, setViewingDoc] = useState<{ type: 'DC' | 'IC' | 'SI' | 'PI' | 'EX', id: string, num: string } | null>(null);
     const [docData, setDocData] = useState<any>(null);
     const [loadingDoc, setLoadingDoc] = useState(false);
+
+    // AI Summary state
+    const [aiSummary, setAiSummary] = useState<string | null>(null);
+    const [isSummarizing, setIsSummarizing] = useState(false);
 
     const handleViewDoc = async (type: 'DC' | 'IC' | 'SI' | 'PI' | 'EX', id: string, num: string) => {
         setViewingDoc({ type, id, num });
@@ -168,6 +174,22 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
         },
         onError: (err: any) => alert('Forward failed: ' + err.message)
     });
+
+    const handleAISummary = async () => {
+        setIsSummarizing(true);
+        try {
+            const res = await aiApi.summarizeChat(currentUser, channel.id, messages);
+            if (res.success && res.summary) {
+                setAiSummary(res.summary);
+            } else {
+                alert(res.error || 'Failed to summarize chat');
+            }
+        } catch (err: any) {
+            alert('AI Summary Error: ' + err.message);
+        } finally {
+            setIsSummarizing(false);
+        }
+    };
 
     const handleDeleteChannel = async () => {
         if (!window.confirm("ARE YOU SURE? This will permanently delete the entire group, all messages, all specs, and all attached files. This cannot be undone.")) return;
@@ -384,14 +406,18 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
     useEffect(() => {
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
-            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+            const scHeight = textareaRef.current.scrollHeight;
+            textareaRef.current.style.height = `${Math.min(scHeight, 150)}px`;
+            // Only show scrollbar if text exceeds max height (150px)
+            textareaRef.current.style.overflowY = scHeight > 150 ? 'auto' : 'hidden';
         }
     }, [newMessage]);
+
 
     return (
         <div className="flex h-full w-full relative">
             <div className="flex flex-col h-full bg-[#efeae2] relative flex-1">
-                <div className="bg-[#008069] text-white px-4 py-3 flex items-center shadow-md z-30 justify-between safe-pt">
+                <div className="bg-[#008069] text-white px-4 pt-[calc(12px+env(safe-area-inset-top))] pb-3 flex items-center shadow-md z-30 justify-between">
                     <div className="flex items-center flex-1 min-w-0">
                         <button onClick={onBack} className="mr-3 md:hidden"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
                         <div className="flex-1 min-w-0">
@@ -416,6 +442,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                     <div className="flex items-center gap-1">
                         <button onClick={() => setShowGroupInfo(true)} className="p-2 hover:bg-white/10 rounded-full text-white"><svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></button>
                     </div>
+
                 </div>
 
                 <SpecDrawer 
@@ -572,12 +599,48 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                     <div ref={messagesEndRef} />
                 </div>
 
-                <div className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-2 relative safe-pb-deep border-t border-gray-200">
+                <div className="bg-[#f0f2f5] px-2 py-2 flex items-center gap-0.5 relative safe-pb-deep border-t border-gray-200">
+
                     <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" multiple />
                     <input type="file" ref={photoInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" multiple />
-                    <button type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-[#008069] hover:bg-white rounded-full transition-all">
+                    <button type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="flex-shrink-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-[#008069] hover:bg-white rounded-full transition-all">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     </button>
+
+
+
+                    <button 
+                        onClick={handleAISummary}
+                        disabled={isSummarizing}
+                        className="flex-shrink-0 flex items-center justify-center transition-all active:scale-95"
+                        title="AI Chat Summary"
+                    >
+                        {isSummarizing ? (
+                             <div className="w-9 h-9 flex items-center justify-center">
+                                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#008069] border-t-transparent"></div>
+                             </div>
+                        ) : (
+
+                            <>
+                                {/* Mobile: Outline Sparkle Icon */}
+                                <div className="md:hidden w-9 h-9 flex items-center justify-center text-gray-500 hover:text-[#008069] hover:bg-white rounded-full transition-all">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                                    </svg>
+                                </div>
+
+                                {/* PC: Sleek Pill Button */}
+                                <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-[#008069] hover:bg-[#006a57] text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm transition-all">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                    Summary
+                                </div>
+                            </>
+                        )}
+                    </button>
+
+
                     {showAttachMenu && (
                         <div className="absolute bottom-16 left-4 bg-white shadow-2xl rounded-2xl p-2 z-50 border border-gray-100 animate-in slide-in-from-bottom-2 duration-200 w-64">
                             <button onClick={() => { photoInputRef.current?.click(); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors border-b border-gray-50">
@@ -636,7 +699,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                                 }
                             }}
                             placeholder="Type a message..."
-                            className="flex-1 py-1.5 bg-transparent border-none focus:ring-0 focus:outline-none text-[15px] resize-none minimal-scrollbar"
+                            className="flex-1 py-1.5 bg-transparent border-none focus:ring-0 focus:outline-none text-[15px] resize-none minimal-scrollbar overflow-hidden"
+
                             style={{ minHeight: '24px', maxHeight: '150px', lineHeight: '24px' }}
                             rows={1}
                         />
@@ -667,12 +731,82 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                 <div className="w-80 bg-white border-l h-full absolute right-0 top-0 z-40 shadow-xl md:static">
                     <div className="bg-[#f0f2f5] p-4 flex items-center gap-3 border-b"><button onClick={() => setShowGroupInfo(false)}>✕</button><h3 className="font-semibold">Group Info</h3></div>
                     <div className="p-8 text-center border-b">
-                        <h2 className="text-2xl font-black">{channel.name}</h2>
-                        <p className="text-sm text-gray-500">{order.order_number}</p>
+                        {isEditingGroupName ? (
+                            <div className="flex flex-col gap-2">
+                                <input 
+                                    value={editedGroupName}
+                                    onChange={e => setEditedGroupName(e.target.value)}
+                                    className="text-center text-xl font-black border-b-2 border-[#008069] focus:outline-none bg-transparent w-full"
+                                    autoFocus
+                                />
+                                <div className="flex gap-2 justify-center">
+                                    <button 
+                                        onClick={() => {
+                                            updateChannelName(editedGroupName);
+                                            setIsEditingGroupName(false);
+                                        }}
+                                        className="text-[10px] font-black text-[#008069] uppercase"
+                                    >
+                                        Save
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            setIsEditingGroupName(false);
+                                            setEditedGroupName(channel.name);
+                                        }}
+                                        className="text-[10px] font-black text-gray-400 uppercase"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="group/name relative inline-block mx-auto">
+                                <h2 className="text-2xl font-black pr-6">{channel.name}</h2>
+                                {canEditGroup && (
+                                    <button 
+                                        onClick={() => setIsEditingGroupName(true)}
+                                        className="absolute right-0 top-1 text-gray-300 hover:text-[#008069] transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                        </svg>
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        <p className="text-sm text-gray-500 mt-1">{order.order_number}</p>
                     </div>
                     <div className="p-6">
                         <div className="flex justify-between items-center mb-4"><h4 className="text-xs font-bold text-gray-400 uppercase">Participants</h4>{canAddMembers && <button onClick={handleAddMember} className="text-xs text-[#008069] font-bold">+ Add</button>}</div>
-                        <div className="space-y-3 mb-8">{members.map(m => (<div key={m.id} className="flex items-center gap-3"><div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center font-bold">{m.name[0]}</div><div className="flex-1 min-w-0"><p className="text-sm font-bold truncate">{m.name}</p></div></div>))}</div>
+                        <div className="space-y-4 mb-8">
+                            {members.map(m => (
+                                <div key={m.id} className="flex items-center gap-3 group/member">
+                                    <div className="h-9 w-9 rounded-full bg-[#e8f5f2] text-[#008069] flex items-center justify-center font-black text-xs shadow-sm border border-green-50">
+                                        {m.name[0].toUpperCase()}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-bold truncate text-gray-800">{m.name}</p>
+                                        <p className="text-[10px] text-gray-400 font-medium truncate">{m.company?.name || 'Kramiz Team'}</p>
+                                    </div>
+                                    {canRemoveMembers && m.id !== currentUser.id && (
+                                        <button 
+                                            onClick={() => {
+                                                if (window.confirm(`Remove ${m.name} from this group?`)) {
+                                                    removeMember(m.id);
+                                                }
+                                            }}
+                                            className="p-2 text-red-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                            title="Remove participant"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                         
                         {canDeleteGroup && (
                             <div className="pt-6 border-t border-gray-100">
@@ -797,6 +931,34 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                     onClose={() => setShowPurchaseInvForm(false)}
                 />
             )}
+            {/* AI Summary Modal */}
+            <Modal isOpen={aiSummary !== null} onClose={() => setAiSummary(null)} title="AI Status Summary">
+                <div className="bg-gradient-to-br from-green-50 to-white p-6 rounded-2xl border border-green-100 shadow-inner">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-xl">✨</div>
+                        <div>
+                            <h4 className="font-black text-gray-900 text-sm uppercase tracking-wider">Order Insight</h4>
+                            <p className="text-[10px] text-green-600 font-bold uppercase tracking-widest">Powered by Gemini 1.5 Flash</p>
+                        </div>
+                    </div>
+                    <div className="space-y-4">
+                        <div className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap font-medium">
+                            {aiSummary}
+                        </div>
+                        <div className="pt-4 border-t border-green-100">
+                            <p className="text-[10px] text-gray-400 italic">This summary is based on the last 50 messages in this group. Always verify critical details.</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-6">
+                    <button 
+                        onClick={() => setAiSummary(null)}
+                        className="w-full py-3.5 bg-[#008069] text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-green-100 hover:bg-[#006a57] transition-all"
+                    >
+                        Got it, thanks!
+                    </button>
+                </div>
+            </Modal>
 
             {showExpenseForm && (
                 <SimpleExpenseForm

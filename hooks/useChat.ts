@@ -154,6 +154,23 @@ export const useChat = (currentUser: User, channel: Channel) => {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['messages', channel.id] })
     });
 
+    const removeMemberMutation = useMutation({
+        mutationFn: (userId: string) => api.removeChannelMember(currentUser, channel.id, userId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['members', channel.id] });
+            queryClient.invalidateQueries({ queryKey: ['channels'] });
+        },
+        onError: (err: any) => alert(err.message)
+    });
+
+    const updateChannelNameMutation = useMutation({
+        mutationFn: (newName: string) => api.updateChannel(currentUser, channel.id, { name: newName }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['channels'] });
+        },
+        onError: (err: any) => alert(err.message)
+    });
+
     return {
         messages,
         members,
@@ -162,6 +179,8 @@ export const useChat = (currentUser: User, channel: Channel) => {
         updateStatus: (newStat: string) => updateStatusMutation.mutate(newStat),
         addMembers: (userIds: string[]) => addMembersMutation.mutate(userIds),
         deleteMessage: (messageId: string) => deleteMessageMutation.mutate(messageId),
+        removeMember: (userId: string) => removeMemberMutation.mutate(userId),
+        updateChannelName: (newName: string) => updateChannelNameMutation.mutate(newName),
         hasPerformedInitialScroll,
         setHasPerformedInitialScroll,
         initialLastReadAt: initialLastReadAtRef.current

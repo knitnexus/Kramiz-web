@@ -20,6 +20,7 @@
 import React, { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../supabaseAPI';
+import { aiApi } from '../../../api/ai';
 import { useContacts } from '../../contacts/useContacts';
 import { AddContactModal } from '../../contacts/components/AddContactModal';
 import { User, DCItem, Contact, Company, Order, DeliveryChallan } from '../../../types';
@@ -68,6 +69,8 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
     const [saving, setSaving]                 = useState(false);
 
     const photoInputRef = useRef<HTMLInputElement>(null);
+    const aiScanInputRef = useRef<HTMLInputElement>(null);
+    const [isScanning, setIsScanning] = useState(false);
 
     // ── Data queries ───────────────────────────────────────────────────────────
     const { data: partners = [] } = useQuery<Company[]>({
@@ -104,6 +107,43 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
         queryKey: ['orders', currentUser.id],
         queryFn:  () => api.getOrders(currentUser),
     });
+
+    // ── AI Scanning ────────────────────────────────────────────────────────────
+    const handleAIScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsScanning(true);
+        try {
+            const res = await aiApi.scanDocument(currentUser, file, 'DC', {
+                styleNo: orders.find(o => o.id === orderId)?.style_number,
+                companyName: currentUser.company?.name
+            });
+
+            if (res.success && res.data) {
+                const { date, party_name, items: extractedItems } = res.data;
+                
+                if (date) setDocDate(date);
+                if (extractedItems?.length) setItems(extractedItems);
+                
+                // Try to match party
+                if (party_name) {
+                    const match = allPossibleRecipients.find(r => 
+                        r.name.toLowerCase().includes(party_name.toLowerCase()) ||
+                        party_name.toLowerCase().includes(r.name.toLowerCase())
+                    );
+                    if (match) setSelectedRecipient(match);
+                }
+            } else {
+                alert(res.error || 'Failed to scan document');
+            }
+        } catch (err: any) {
+            alert('AI Scanning Error: ' + err.message);
+        } finally {
+            setIsScanning(false);
+            if (aiScanInputRef.current) aiScanInputRef.current.value = '';
+        }
+    };
 
     // ── Photo upload ───────────────────────────────────────────────────────────
     const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -187,6 +227,33 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
                 {/* Body: Scrollable */}
                 <div className="overflow-y-auto flex-1 px-6 pt-5 pb-10 space-y-6 text-left">
                     
+                    {/* AI Magic Banner */}
+                    {!initialData && (
+                        <div className="bg-gradient-to-br from-[#008069] to-[#00a884] p-4 rounded-2xl shadow-lg shadow-green-100 flex items-center justify-between gap-4 border border-white/20">
+                            <div className="flex-1">
+                                <h4 className="text-white font-black text-sm uppercase tracking-wider flex items-center gap-2">
+                                    <span className="text-lg">✨</span> AI Smart Fill
+                                </h4>
+                                <p className="text-green-50 text-[11px] font-medium leading-tight mt-1">Upload a photo of the physical DC and I'll fill the form for you.</p>
+                            </div>
+                            <button 
+                                onClick={() => aiScanInputRef.current?.click()}
+                                disabled={isScanning}
+                                className="bg-white text-[#008069] px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-green-50 active:scale-95 transition-all shadow-sm disabled:opacity-50"
+                            >
+                                {isScanning ? 'Scanning...' : 'Scan Now'}
+                            </button>
+                            <input 
+                                ref={aiScanInputRef}
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className="hidden"
+                                onChange={handleAIScan}
+                            />
+                        </div>
+                    )}
+
                     {/* Date Picker */}
                     <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl border border-gray-100">
                         <div>
@@ -384,6 +451,7 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
                     handlePINInput={handlePINInput}
                     onSave={saveContact}
                     onClose={closeContactModal}
+                    currentUser={currentUser}
                 />
             )}
         </div>

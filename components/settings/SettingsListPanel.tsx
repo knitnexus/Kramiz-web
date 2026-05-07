@@ -56,14 +56,14 @@ export const SettingsListPanel: React.FC<ListPanelProps> = ({
 
     return (
         <div className="flex flex-col h-full bg-[#f0f2f5] min-w-0 overflow-hidden">
-            <div className="bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between shadow-sm safe-pt">
+            <div className="bg-white border-b border-gray-200 px-4 pt-[calc(16px+env(safe-area-inset-top))] pb-4 flex items-center justify-between shadow-sm">
                 <h1 className="text-[17px] font-semibold text-gray-900">Settings</h1>
                 <button onClick={onLogout} className="text-[13px] text-red-500 font-medium px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
                     Logout
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto pb-20">
+            <div className="flex-1 overflow-y-auto pb-[calc(80px+env(safe-area-inset-bottom))]">
                 <SectionLabel label="Account" />
                 <Card>
                     <ListRow 

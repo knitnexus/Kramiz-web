@@ -102,7 +102,8 @@ export const SearchCompanyPanel: React.FC<SearchCompanyPanelProps> = ({
                                 {searchResult.name.charAt(0).toUpperCase()}
                             </div>
                             <div className="min-w-0">
-                                <p className="font-black text-gray-900 text-base truncate">{searchResult.name}</p>
+                                <p className="font-black text-gray-900 text-base break-words line-clamp-2 leading-tight">{searchResult.name}</p>
+
                                 <div className="flex flex-wrap gap-2 mt-1">
                                     {searchResult.kramiz_id && (
                                         <span className="text-[10px] font-mono bg-white border border-green-200 text-green-700 px-2 py-0.5 rounded-full">

@@ -36,8 +36,12 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
         editPincode, handlePincodeChange, isPincodeValid,
         nameUnchanged, gstUnchanged, addressUnchanged,
         handleSaveName, handleSaveGST, handleSaveAddress,
+        handleSaveUserName, handleShareCompany,
         isSavingName, isSavingGST, isSavingAddress,
-    } = useCompanyIdentity({ companyId: currentUser.company_id, userCompany, canEdit });
+        isSavingUser, userUnchanged, editUserName, setEditUserName,
+    } = useCompanyIdentity({ currentUser, companyId: currentUser.company_id, userCompany, canEdit });
+
+
 
     return (
         <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -138,15 +142,27 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                 </div>
 
                 {/* ── Kramiz ID (read-only) ────────────────────────── */}
-                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Your Kramiz ID</p>
-                    <p className="text-lg font-black font-mono tracking-widest text-gray-800 break-all">
-                        {userCompany?.kramiz_id || '—'}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                        Share this code with partners who don't have a GST number
-                    </p>
+                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Your Kramiz ID</p>
+                        <p className="text-lg font-black font-mono tracking-widest text-gray-800 break-all">
+                            {userCompany?.kramiz_id || '—'}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                            Share this code with partners who don't have a GST number
+                        </p>
+                    </div>
+                    <button
+                        onClick={handleShareCompany}
+                        className="shrink-0 w-12 h-12 rounded-xl bg-[#008069] text-white flex items-center justify-center shadow-lg hover:bg-[#006a57] transition-all active:scale-95"
+                        title="Share Company Profile"
+                    >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                        </svg>
+                    </button>
                 </div>
+
 
                 {/* ── Address ──────────────────────────────────────── */}
                 <div className="space-y-3">
@@ -219,6 +235,40 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                     )}
                 </div>
             </div>
+
+            {/* ── Personal Details ────────────────────────────────────────── */}
+            <div className="mt-8 pt-8 border-t border-gray-100">
+                <h3 className="text-lg font-black text-gray-900 mb-4 flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700">👤</div>
+                    Personal Details
+                </h3>
+                
+                <div>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">
+                        Your Display Name
+                    </label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                            type="text"
+                            value={editUserName}
+                            onChange={e => setEditUserName(e.target.value)}
+                            placeholder="Your full name"
+                            className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all w-full"
+                        />
+                        <button
+                            onClick={handleSaveUserName}
+                            disabled={isSavingUser || userUnchanged}
+                            className="px-6 py-2 bg-[#008069] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#006a57] disabled:opacity-40 transition-all w-full sm:w-auto"
+                        >
+                            {isSavingUser ? 'Saving...' : 'Update Name'}
+                        </button>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1.5 px-1">
+                        Registered phone: <span className="font-mono text-gray-500">{currentUser.phone}</span>
+                    </p>
+                </div>
+            </div>
         </section>
+
     );
 };

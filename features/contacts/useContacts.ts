@@ -11,7 +11,8 @@
  * Used by: features/contacts/ContactsPage.tsx
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../supabaseAPI';
 import { Contact, User } from '../../types';
@@ -37,6 +38,8 @@ export const useContacts = (currentUser: User) => {
     const [isAdding, setIsAdding]     = useState(false);  // controls Add modal visibility
     const [editingId, setEditingId]   = useState<string | null>(null);
     const [form, setForm]             = useState<ContactForm>(BLANK_FORM);
+    const [isVerifying, setIsVerifying] = useState(false);
+
 
     // ── Query ──────────────────────────────────────────────────────────────────
 
@@ -122,12 +125,45 @@ export const useContacts = (currentUser: User) => {
 
     // ── Actions ────────────────────────────────────────────────────────────────
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!form.name.trim()) { alert('Contact name is required'); return; }
-        if (!isGSTValid)        { alert('GST must be exactly 15 characters'); return; }
+        if (!isGSTValid)        { alert('GST must be exactly 15 characters (A-Z, 0-9)'); return; }
         if (!isPINValid)        { alert('PIN code must be exactly 6 digits'); return; }
+
+        const gst = form.gst_number.trim().toUpperCase();
+        
+        // 1. If GST is provided, check for uniqueness across Kramiz
+        if (gst) {
+            setIsVerifying(true);
+            try {
+                // Check if this GST belongs to a registered company
+                const { available } = await api.checkGSTAvailability(gst);
+                if (!available) {
+                    alert('This GST is already registered as a Kramiz company. You can find them in the "Connect" search tab.');
+                    setIsVerifying(false);
+                    return;
+                }
+
+                // Check if this GST is already in YOUR contacts (if not this one)
+                const duplicate = contacts.find(c => c.gst_number === gst && c.id !== editingId);
+                if (duplicate) {
+                    alert(`You already have a contact with this GST: "${duplicate.name}"`);
+                    setIsVerifying(false);
+                    return;
+                }
+            } catch (err) {
+                console.error('GST check failed:', err);
+                // We proceed if the check fails to avoid blocking the user, 
+                // but log it. In a production env, we'd handle this more strictly.
+            } finally {
+                setIsVerifying(false);
+            }
+        }
+
+        // 2. Perform the save
         editingId ? updateMutation.mutate() : createMutation.mutate();
     };
+
 
     /**
      * Generates a WhatsApp invite link for the contact and marks it as sent.
@@ -204,7 +240,8 @@ export const useContacts = (currentUser: User) => {
         handleConnectLinked, handleDelete,
 
         // Loading flags
-        isSaving:   createMutation.isPending || updateMutation.isPending,
+        isSaving:   createMutation.isPending || updateMutation.isPending || isVerifying,
         isDeleting: deleteMutation.isPending,
     };
 };
+

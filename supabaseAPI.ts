@@ -838,7 +838,21 @@ export const api = {
         return data as User;
     },
 
+    updateUserName: async (userId: string, newName: string) => {
+        if (!newName.trim()) throw new Error('Name cannot be empty');
+        const { data, error } = await supabase
+            .from('users')
+            .update({ name: newName.trim() })
+            .eq('id', userId)
+            .select()
+            .single();
+
+        if (error) throw new Error('Failed to update name: ' + error.message);
+        return data as User;
+    },
+
     getTeamMembers: async (currentUser: User) => {
+
         const { data, error } = await supabase.from('users').select('*').eq('company_id', currentUser.company_id).order('created_at', { ascending: true });
         if (error) throw new Error(error.message);
         return data as User[];

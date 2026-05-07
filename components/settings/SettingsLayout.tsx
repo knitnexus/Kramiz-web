@@ -7,7 +7,8 @@ export const SubScreenContent = memo<{
 }>(({ title, onBack, children }) => (
     <div className="flex flex-col h-full bg-[#f0f2f5] w-full min-w-0 overflow-hidden">
         {/* Header - Back button visible on mobile only */}
-        <div className="bg-white px-4 py-4 md:py-6 flex items-center gap-3 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] z-10 sticky top-0">
+        <div className="bg-white px-4 pt-[calc(12px+env(safe-area-inset-top))] pb-4 md:py-6 flex items-center gap-3 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] z-10 sticky top-0">
+
             <button
                 onClick={onBack}
                 className="p-1.5 -ml-1 text-gray-500 hover:bg-gray-100 rounded-full transition-colors md:hidden"
@@ -20,7 +21,8 @@ export const SubScreenContent = memo<{
         </div>
         
         {/* Scrollable Main Area */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 md:p-8">
+        <div className="flex-1 overflow-y-auto px-4 pt-6 pb-[calc(24px+env(safe-area-inset-bottom))] md:p-8">
+
             {/* Constrain width on large screens to prevent stretching */}
             <div className="max-w-4xl mx-auto space-y-6">
                 {children}

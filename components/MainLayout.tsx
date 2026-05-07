@@ -132,6 +132,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                     </div>
                 )}
 
+
                 {/* Main Content Area */}
                 <div className={`flex-1 flex flex-col md:flex-row h-full w-full relative min-w-0 ${!isInsideChat ? 'pb-[calc(68px+env(safe-area-inset-bottom))] md:pb-0' : ''}`}>
                     

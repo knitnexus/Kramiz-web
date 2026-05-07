@@ -57,7 +57,8 @@ export const NotificationsSettings: React.FC<NotificationsSettingsProps> = ({ cu
 
     return (
         <SubScreenContent title="Notifications" onBack={() => navigate('/settings')}>
-            <div className="space-y-6 max-w-2xl mx-auto px-4 py-4 pb-20">
+            <div className="space-y-6 max-w-2xl mx-auto px-4 py-4">
+
                 
                 {/* 1. Toggle Section */}
                 <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">

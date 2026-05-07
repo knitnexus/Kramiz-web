@@ -217,7 +217,7 @@ export const QuickGroupForm: React.FC<QuickGroupFormProps> = ({ orderId, current
                     </div>
                 </div>
 
-                <div className="p-6 border-t border-gray-100 bg-white flex gap-3 flex-none">
+                <div className="px-6 pt-6 pb-[calc(20px+env(safe-area-inset-bottom))] sm:pb-6 border-t border-gray-100 bg-white flex gap-3 flex-none">
                     <button onClick={onClose} className="flex-1 py-3.5 border border-gray-200 text-gray-500 rounded-[20px] text-sm font-bold hover:bg-gray-50 transition-all">Cancel</button>
                     <button
                         onClick={handleCreate}

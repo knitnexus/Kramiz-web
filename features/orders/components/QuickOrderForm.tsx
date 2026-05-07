@@ -61,7 +61,7 @@ export const QuickOrderForm: React.FC<QuickOrderFormProps> = ({ currentUser, onC
                     <p className="text-[11px] text-gray-400">An Overview chat will be created automatically.</p>
                 </div>
 
-                <div className="p-5 border-t border-gray-100 bg-gray-50/50 flex gap-3 flex-none">
+                <div className="px-5 pt-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:pb-5 border-t border-gray-100 bg-gray-50/50 flex gap-3 flex-none">
                     <button onClick={onClose} className="flex-1 py-3 border border-gray-200 text-gray-500 rounded-2xl text-sm font-medium hover:bg-gray-50 transition-all">Cancel</button>
                     <button
                         onClick={handleCreate}

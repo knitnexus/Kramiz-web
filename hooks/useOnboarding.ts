@@ -36,8 +36,8 @@ export const useOnboarding = () => {
 
         if (isNative) {
             checkIncomingShare();
-            window.addEventListener('appUrlOpen', () => checkIncomingShare());
         }
+
 
         const handleBeforeInstallPrompt = (e: any) => {
             e.preventDefault();

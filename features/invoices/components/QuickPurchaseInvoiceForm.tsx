@@ -8,6 +8,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { User, Company, Contact, GSTType, GSTRate, Order, Invoice } from '../../../types';
 import { api } from '../../../supabaseAPI';
+import { aiApi } from '../../../api/ai';
 import { useContacts } from '../../contacts/useContacts';
 import { AddContactModal } from '../../contacts/components/AddContactModal';
 
@@ -47,6 +48,8 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
     const [dueDate, setDueDate]           = useState(initialData?.due_date ? new Date(initialData.due_date).toISOString().split('T')[0] : '');
     const [orderId, setOrderId]           = useState(initialData?.order_id || '');
     const [saving, setSaving]             = useState(false);
+    const aiScanInputRef = React.useRef<HTMLInputElement>(null);
+    const [isScanning, setIsScanning] = useState(false);
 
     const { data: partners = [] } = useQuery<Company[]>({
         queryKey: ['partners', currentUser.company_id],
@@ -106,6 +109,52 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
         const newItems = [...items];
         newItems[index] = { ...newItems[index], [field]: value };
         setItems(newItems);
+    };
+
+    // ── AI Scanning ────────────────────────────────────────────────────────────
+    const handleAIScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsScanning(true);
+        try {
+            const res = await aiApi.scanDocument(currentUser, file, 'INVOICE', {
+                styleNo: orders.find(o => o.id === orderId)?.style_number,
+                companyName: currentUser.company?.name
+            });
+
+            if (res.success && res.data) {
+                const { date, party_name, items: extractedItems, invoice_number } = res.data;
+                
+                if (date) setDocDate(date);
+                if (extractedItems?.length) {
+                    setItems(extractedItems.map((it: any) => ({
+                        description: it.name || it.description || '',
+                        hsn_code: it.hsn_code || '',
+                        quantity: String(it.quantity || 1),
+                        rate: String(it.rate || 0),
+                        unit: it.unit || 'PCS'
+                    })));
+                }
+                if (invoice_number) setInvNo(invoice_number);
+                
+                // Try to match seller
+                if (party_name) {
+                    const match = allPossibleSellers.find(s => 
+                        s.name.toLowerCase().includes(party_name.toLowerCase()) ||
+                        party_name.toLowerCase().includes(s.name.toLowerCase())
+                    );
+                    if (match) setSelectedSeller(match);
+                }
+            } else {
+                alert(res.error || 'Failed to scan invoice');
+            }
+        } catch (err: any) {
+            alert('AI Scanning Error: ' + err.message);
+        } finally {
+            setIsScanning(false);
+            if (aiScanInputRef.current) aiScanInputRef.current.value = '';
+        }
     };
 
     const handleCreate = async () => {
@@ -170,6 +219,34 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                 </div>
 
                 <div className="px-6 pt-6 pb-12 overflow-y-auto flex-1 space-y-5">
+                    
+                    {/* AI Magic Banner */}
+                    {!initialData && (
+                        <div className="bg-gradient-to-br from-orange-600 to-orange-500 p-4 rounded-2xl shadow-lg shadow-orange-100 flex items-center justify-between gap-4 border border-white/20">
+                            <div className="flex-1">
+                                <h4 className="text-white font-black text-sm uppercase tracking-wider flex items-center gap-2">
+                                    <span className="text-lg">✨</span> AI Smart Bill Scan
+                                </h4>
+                                <p className="text-orange-50 text-[11px] font-medium leading-tight mt-1">Upload a photo of the vendor bill and I'll extract the items and totals.</p>
+                            </div>
+                            <button 
+                                onClick={() => aiScanInputRef.current?.click()}
+                                disabled={isScanning}
+                                className="bg-white text-orange-600 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-orange-50 active:scale-95 transition-all shadow-sm disabled:opacity-50"
+                            >
+                                {isScanning ? 'Scanning...' : 'Scan Now'}
+                            </button>
+                            <input 
+                                ref={aiScanInputRef}
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className="hidden"
+                                onChange={handleAIScan}
+                            />
+                        </div>
+                    )}
+
                     <div className="relative">
                         <label className={labelCls}>Select Vendor</label>
                         <div className="relative">
@@ -308,6 +385,7 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                     handlePINInput={handlePINInput}
                     onSave={saveContact}
                     onClose={closeContactModal}
+                    currentUser={currentUser}
                 />
             )}
         </div>

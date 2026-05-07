@@ -38,10 +38,12 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
 
         {/* Footer: Fixed */}
         {footer && (
-          <div className="px-6 py-5 bg-gray-50 border-t border-gray-100 flex-none flex justify-end gap-3 rounded-b-none sm:rounded-b-[32px]">
+          <div className="px-6 pt-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:pb-6 bg-gray-50 border-t border-gray-100 flex-none flex justify-end gap-3 rounded-b-none sm:rounded-b-[32px] overflow-hidden">
             {footer}
           </div>
         )}
+
+
       </div>
     </div>
   );

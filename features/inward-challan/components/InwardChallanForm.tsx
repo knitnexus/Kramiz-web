@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../supabaseAPI';
+import { aiApi } from '../../../api/ai';
 import { useContacts } from '../../contacts/useContacts';
 import { AddContactModal } from '../../contacts/components/AddContactModal';
 import { User, DCItem, Company, Order, Contact, DeliveryChallan, InwardChallan } from '../../../types';
@@ -58,6 +59,8 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
     const [discrepancies, setDiscrepancies]     = useState(initialData?.discrepancies || '');
     const [notes, setNotes]                     = useState(initialData?.notes || '');
     const [saving, setSaving]                   = useState(false);
+    const aiScanInputRef = React.useRef<HTMLInputElement>(null);
+    const [isScanning, setIsScanning] = useState(false);
 
     // ── Data queries ───────────────────────────────────────────────────────────
     const { data: partners = [] } = useQuery<Company[]>({
@@ -123,6 +126,44 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
         }))
     ].filter(s => s.name.toLowerCase().includes(senderSearch.toLowerCase()));
 
+    // ── AI Scanning ────────────────────────────────────────────────────────────
+    const handleAIScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsScanning(true);
+        try {
+            const res = await aiApi.scanDocument(currentUser, file, 'IC', {
+                styleNo: orders.find(o => o.id === orderId)?.style_number,
+                companyName: currentUser.company?.name
+            });
+
+            if (res.success && res.data) {
+                const { date, party_name, items: extractedItems, dc_number } = res.data;
+                
+                if (date) setDocDate(date);
+                if (extractedItems?.length) setItems(extractedItems);
+                if (dc_number) setRefOrderNumber(dc_number);
+                
+                // Try to match sender
+                if (party_name) {
+                    const match = allPossibleSenders.find(s => 
+                        s.name.toLowerCase().includes(party_name.toLowerCase()) ||
+                        party_name.toLowerCase().includes(s.name.toLowerCase())
+                    );
+                    if (match) setSelectedSender(match);
+                }
+            } else {
+                alert(res.error || 'Failed to scan document');
+            }
+        } catch (err: any) {
+            alert('AI Scanning Error: ' + err.message);
+        } finally {
+            setIsScanning(false);
+            if (aiScanInputRef.current) aiScanInputRef.current.value = '';
+        }
+    };
+
     // ── Submit ─────────────────────────────────────────────────────────────────
     const handleSubmit = async () => {
         const validItems = items.filter(it => it.description.trim() && it.quantity > 0);
@@ -180,6 +221,33 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
                 {/* Body: Scrollable */}
                 <div className="overflow-y-auto flex-1 px-6 pt-5 pb-10 space-y-6">
                     
+                    {/* AI Magic Banner */}
+                    {!initialData && (
+                        <div className="bg-gradient-to-br from-[#008069] to-[#00a884] p-4 rounded-2xl shadow-lg shadow-green-100 flex items-center justify-between gap-4 border border-white/20">
+                            <div className="flex-1">
+                                <h4 className="text-white font-black text-sm uppercase tracking-wider flex items-center gap-2">
+                                    <span className="text-lg">✨</span> AI Smart Fill
+                                </h4>
+                                <p className="text-green-50 text-[11px] font-medium leading-tight mt-1">Scan the paper DC/Slip you received to auto-fill this form.</p>
+                            </div>
+                            <button 
+                                onClick={() => aiScanInputRef.current?.click()}
+                                disabled={isScanning}
+                                className="bg-white text-[#008069] px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-green-50 active:scale-95 transition-all shadow-sm disabled:opacity-50"
+                            >
+                                {isScanning ? 'Scanning...' : 'Scan Now'}
+                            </button>
+                            <input 
+                                ref={aiScanInputRef}
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className="hidden"
+                                onChange={handleAIScan}
+                            />
+                        </div>
+                    )}
+
                     {/* Date Picker */}
                     <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl border border-gray-100">
                         <div>
@@ -335,6 +403,7 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
                     handlePINInput={handlePINInput}
                     onSave={saveContact}
                     onClose={closeContactModal}
+                    currentUser={currentUser}
                 />
             )}
         </div>

@@ -74,7 +74,8 @@ export const FloatingActionButton: React.FC<FABProps> = ({ currentUser, visible 
     return (
         <>
             {/* Speed-dial action items */}
-            <div className="fixed bottom-20 right-4 z-40 flex flex-col items-end gap-3 md:bottom-8 md:right-6">
+            <div className="fixed bottom-[calc(84px+env(safe-area-inset-bottom))] right-4 z-40 flex flex-col items-end gap-3 md:bottom-8 md:right-6">
+
                 {open && actions.map((action, i) => (
                     <div
                         key={action.key}

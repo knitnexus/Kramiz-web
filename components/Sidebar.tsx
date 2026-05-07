@@ -46,7 +46,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
     return (
         <div className="flex flex-col h-full bg-white border-r border-gray-200 w-full min-w-0 max-w-full md:max-w-none md:w-[400px] overflow-hidden relative">
             {/* Header & View Controls */}
-            <div className="bg-[#f0f2f5] border-b sticky top-0 z-10 flex flex-col pt-[env(safe-area-inset-top)] min-w-0 overflow-hidden">
+            <div className="bg-[#f0f2f5] border-b sticky top-0 z-10 flex flex-col pt-[calc(16px+env(safe-area-inset-top))] min-w-0 overflow-hidden">
+
                 <div className="px-5 py-4 flex justify-between items-center min-w-0">
                     <h1 className="text-[22px] font-bold text-gray-900 tracking-tight">Chats</h1>
                 </div>
@@ -349,7 +350,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
             {canCreateOrder && (
                 <button 
                     onClick={() => openModal('NEW_ORDER')} 
-                    className="fixed md:absolute bottom-20 md:bottom-6 right-6 h-14 w-14 flex items-center justify-center text-white bg-[#008069] hover:bg-[#006a57] rounded-full shadow-2xl transition-all hover:scale-110 active:scale-95 z-[60]"
+                    className="fixed md:absolute bottom-[calc(84px+env(safe-area-inset-bottom))] md:bottom-6 right-6 h-14 w-14 flex items-center justify-center text-white bg-[#008069] hover:bg-[#006a57] rounded-full shadow-2xl transition-all hover:scale-110 active:scale-95 z-[60]"
                     title="Add New Order"
                 >
                     <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -47,7 +47,8 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ currentUser }) => {
 
     return (
         <>
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300 pb-24 sm:pb-0">
+
 
                 {/* ── Header ────────────────────────────────────────────────── */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -166,7 +167,6 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ currentUser }) => {
                     </section>
                 )}
             </div>
-
             {/* ── Add / Edit Modal ────────────────────────────────────────── */}
             {isAdding && (
                 <AddContactModal
@@ -180,6 +180,7 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ currentUser }) => {
                     handlePINInput={handlePINInput}
                     onSave={handleSave}
                     onClose={closeModal}
+                    currentUser={currentUser}
                 />
             )}
         </>

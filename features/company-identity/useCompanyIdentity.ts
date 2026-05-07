@@ -13,15 +13,20 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../supabaseAPI';
-import { Company } from '../../types';
+import { Company, User } from '../../types';
+
 
 interface UseCompanyIdentityProps {
+    currentUser: User;
     companyId: string;
     userCompany: Company | null | undefined;
     canEdit: boolean;
 }
 
-export const useCompanyIdentity = ({ companyId, userCompany, canEdit }: UseCompanyIdentityProps) => {
+
+
+export const useCompanyIdentity = ({ currentUser, companyId, userCompany, canEdit }: UseCompanyIdentityProps) => {
+
     const queryClient = useQueryClient();
 
     // Local form state
@@ -30,6 +35,8 @@ export const useCompanyIdentity = ({ companyId, userCompany, canEdit }: UseCompa
     const [editAddress, setEditAddress]     = useState(userCompany?.address  || '');
     const [editState, setEditState]         = useState(userCompany?.state    || '');
     const [editPincode, setEditPincode]     = useState(userCompany?.pincode  || '');
+    const [editUserName, setEditUserName]   = useState(currentUser.name || '');
+
 
     // Sync local state when userCompany arrives or changes
     useEffect(() => {
@@ -40,7 +47,9 @@ export const useCompanyIdentity = ({ companyId, userCompany, canEdit }: UseCompa
             setEditState(userCompany.state || '');
             setEditPincode(userCompany.pincode || '');
         }
-    }, [userCompany]);
+        setEditUserName(currentUser.name || '');
+    }, [userCompany, currentUser]);
+
 
     // GST validation: must be exactly 15 uppercase alphanumeric characters (or empty)
     const isGSTValid = editGSTNumber === '' || editGSTNumber.length === 15;
@@ -87,6 +96,16 @@ export const useCompanyIdentity = ({ companyId, userCompany, canEdit }: UseCompa
         onError: (err: any) => alert(err.message || 'Failed to update address'),
     });
 
+    const updateUserNameMutation = useMutation({
+        mutationFn: (newName: string) => api.updateUserName(currentUser.id, newName),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['user'] });
+            alert('Your name has been updated!');
+        },
+        onError: (err: any) => alert(err.message || 'Failed to update name'),
+    });
+
+
     // ─── Handlers ─────────────────────────────────────────────────────────────
 
     const handleSaveName = () => {
@@ -111,6 +130,34 @@ export const useCompanyIdentity = ({ companyId, userCompany, canEdit }: UseCompa
         });
     };
 
+
+    const handleSaveUserName = () => {
+        if (!editUserName.trim()) return alert('Name cannot be empty');
+        updateUserNameMutation.mutate(editUserName);
+    };
+
+    const handleShareCompany = () => {
+        if (!userCompany) return;
+        
+        const message = 
+            `*Company Details: ${userCompany.name}*\n\n` +
+            (userCompany.gst_number ? `*GST:* ${userCompany.gst_number}\n` : '') +
+            (userCompany.kramiz_id ? `*Kramiz ID:* ${userCompany.kramiz_id}\n` : '') +
+            (userCompany.address ? `*Address:* ${userCompany.address}, ${userCompany.state} - ${userCompany.pincode}\n` : '') +
+            `*Contact:* ${currentUser.phone}\n\n` +
+            `Connect with us on Kramiz!`;
+
+        if (navigator.share) {
+            navigator.share({
+                title: userCompany.name,
+                text: message,
+            }).catch(err => console.log('Share failed:', err));
+        } else {
+            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+        }
+    };
+
+
     const addressUnchanged =
         editAddress === (userCompany?.address  || '') &&
         editState   === (userCompany?.state    || '') &&
@@ -123,20 +170,27 @@ export const useCompanyIdentity = ({ companyId, userCompany, canEdit }: UseCompa
         editAddress, setEditAddress,
         editState, setEditState,
         editPincode, handlePincodeChange, isPincodeValid,
+        editUserName, setEditUserName,
+
 
         // Derived
         nameUnchanged: editCompanyName === (userCompany?.name || ''),
         gstUnchanged: editGSTNumber === (userCompany?.gst_number || ''),
+        userUnchanged: editUserName === (currentUser.name || ''),
         addressUnchanged,
 
         // Handlers
         handleSaveName,
         handleSaveGST,
         handleSaveAddress,
+        handleSaveUserName,
+        handleShareCompany,
 
         // Loading states
         isSavingName: updateNameMutation.isPending,
         isSavingGST: updateGSTMutation.isPending,
         isSavingAddress: updateProfileMutation.isPending,
+        isSavingUser: updateUserNameMutation.isPending,
     };
 };
+
