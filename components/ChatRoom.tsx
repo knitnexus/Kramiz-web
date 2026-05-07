@@ -599,7 +599,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                     <div ref={messagesEndRef} />
                 </div>
 
-                <div className="bg-[#f0f2f5] px-2 py-2 flex items-center gap-0.5 relative safe-pb-deep border-t border-gray-200">
+                <div className="bg-[#f0f2f5] px-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom))] flex items-center gap-0.5 relative border-t border-gray-200">
 
                     <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" multiple />
                     <input type="file" ref={photoInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" multiple />
@@ -728,8 +728,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
             </div>
 
             {showGroupInfo && (
-                <div className="w-80 bg-white border-l h-full absolute right-0 top-0 z-40 shadow-xl md:static">
-                    <div className="bg-[#f0f2f5] p-4 flex items-center gap-3 border-b"><button onClick={() => setShowGroupInfo(false)}>✕</button><h3 className="font-semibold">Group Info</h3></div>
+                <div className="w-80 bg-white border-l h-full absolute right-0 top-0 z-40 shadow-xl md:static flex flex-col">
+                    <div className="bg-[#f0f2f5] p-4 pt-[calc(16px+env(safe-area-inset-top))] flex items-center gap-3 border-b shadow-sm">
+                        <button onClick={() => setShowGroupInfo(false)} className="p-1 hover:bg-gray-200 rounded-full transition-colors">✕</button>
+                        <h3 className="font-bold text-gray-900">Group Info</h3>
+                    </div>
                     <div className="p-8 text-center border-b">
                         {isEditingGroupName ? (
                             <div className="flex flex-col gap-2">

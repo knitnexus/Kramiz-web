@@ -104,7 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto overflow-x-hidden pb-32 min-w-0">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden pb-12 min-w-0">
                 {loading ? (
                     <div className="p-12 text-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#008069] mx-auto mb-4"></div>

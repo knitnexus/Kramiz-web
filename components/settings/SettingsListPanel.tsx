@@ -63,7 +63,7 @@ export const SettingsListPanel: React.FC<ListPanelProps> = ({
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto pb-[calc(80px+env(safe-area-inset-bottom))]">
+            <div className="flex-1 overflow-y-auto pb-[calc(64px+env(safe-area-inset-bottom))]">
                 <SectionLabel label="Account" />
                 <Card>
                     <ListRow 

@@ -123,8 +123,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             <div className="flex-1 flex flex-col h-full relative">
                 {/* Mobile Bottom Navigation */}
                 {!isInsideChat && (
-                    <div className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(68px+env(safe-area-inset-bottom))] bg-white/95 backdrop-blur-md border-t border-gray-100 z-[100] px-4 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)]">
-                        <div className="flex h-[68px] items-center">
+                    <div className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(60px+env(safe-area-inset-bottom))] bg-white/95 backdrop-blur-md border-t border-gray-100 z-[100] px-4 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)]">
+                        <div className="flex h-[60px] items-center">
                             <NavItem icon={icons.chats}     label="Chats"     isActive={isChats}     onClick={() => navigate('/chats')} />
                             <NavItem icon={icons.dashboard} label="Dashboard" isActive={isDashboard} onClick={() => navigate('/dashboard')} />
                             <NavItem icon={icons.settings}  label="Settings"  isActive={isSettingsTab || isSettings}  onClick={() => navigate('/settings')} />
@@ -134,7 +134,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
 
                 {/* Main Content Area */}
-                <div className={`flex-1 flex flex-col md:flex-row h-full w-full relative min-w-0 ${!isInsideChat ? 'pb-[calc(68px+env(safe-area-inset-bottom))] md:pb-0' : ''}`}>
+                <div className={`flex-1 flex flex-col md:flex-row h-full w-full relative min-w-0 ${!isInsideChat ? 'pb-[calc(60px+env(safe-area-inset-bottom))] md:pb-0' : ''}`}>
                     
                     {/* Sidebar: Chats List */}
                     <div className={`
