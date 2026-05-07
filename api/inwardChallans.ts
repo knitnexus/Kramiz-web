@@ -91,6 +91,7 @@ export const createInwardChallan = async (
     if (!hasPermission(currentUser.role, 'CREATE_IC')) {
         throw new Error('You do not have permission to create inward challans');
     }
+    if (!params.order_number) throw new Error('An Order link is required for every Inward Challan');
     if (!params.items_received?.length) {
         throw new Error('At least one item is required on an Inward Challan');
     }

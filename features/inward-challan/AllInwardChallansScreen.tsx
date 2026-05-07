@@ -32,6 +32,23 @@ export const AllInwardChallansScreen: React.FC<AllInwardChallansScreenProps> = (
         retry: 1, // Don't retry infinitely
     });
 
+    const { data: orders = [] } = useQuery({
+        queryKey: ['orders', currentUser.id],
+        queryFn: () => api.getOrders(currentUser),
+    });
+
+    // Helper to find order name if parent_order is missing
+    const getOrderName = (ic: InwardChallan) => {
+        if ((ic as any).parent_order?.order_number) return (ic as any).parent_order.order_number;
+        if (!ic.order_number) return null;
+        
+        const found = orders.find(o => o.id === ic.order_number);
+        if (found) return found.order_number;
+
+        // Fallback to substring if it looks like a UUID
+        return ic.order_number.length > 20 ? ic.order_number.substring(0, 8).toUpperCase() : ic.order_number;
+    };
+
     const deleteMutation = useMutation({
         mutationFn: (id: string) => api.deleteInwardChallan(currentUser, id),
         onSuccess: () => {
@@ -99,10 +116,6 @@ export const AllInwardChallansScreen: React.FC<AllInwardChallansScreenProps> = (
                     ) : (
                         ics.map(ic => {
                             const partner = resolveFrom(ic);
-                            const orderNo = ic.order_number;
-                            const displayOrderNo = orderNo && orderNo.length > 20 
-                                ? orderNo.substring(0, 8).toUpperCase() 
-                                : (orderNo || 'N/A');
 
                             return (
                                 <div
@@ -123,14 +136,14 @@ export const AllInwardChallansScreen: React.FC<AllInwardChallansScreenProps> = (
                                         </p>
                                         <div className="flex items-center gap-3 mt-2">
                                             <span className="text-[11px] font-bold text-[#008069] bg-[#e7f3f1] px-2 py-0.5 rounded-lg">
-                                                Order: {displayOrderNo}
+                                                Order: {getOrderName(ic) || 'N/A'}
                                             </span>
                                             <span className="text-[11px] text-gray-400 font-medium">
                                                 {ic.items_received?.length || 0} items
                                             </span>
                                         </div>
                                     </div>
-
+                                    
                                     {/* Menu Trigger */}
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === ic.id ? null : ic.id); }}

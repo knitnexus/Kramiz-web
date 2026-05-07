@@ -54,8 +54,16 @@ export const ChallanDetailView: React.FC<ChallanDetailViewProps> = ({ data, type
                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Date</span>
                             <p className="text-sm font-bold text-gray-900">{new Date(data.created_at || '').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                         </div>
-                        {data.ref_order_number && (
+                        {((data as any).parent_order?.order_number || data.order_number) && (
                             <div>
+                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Linked Order</span>
+                                <p className="text-sm font-bold text-indigo-600">
+                                    {(data as any).parent_order?.order_number || (data.order_number && data.order_number.length > 20 ? data.order_number.substring(0, 8).toUpperCase() : data.order_number)}
+                                </p>
+                            </div>
+                        )}
+                        {data.ref_order_number && (
+                            <div className="col-span-2 mt-2">
                                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Reference No.</span>
                                 <p className="text-sm font-bold text-gray-900">{data.ref_order_number}</p>
                             </div>

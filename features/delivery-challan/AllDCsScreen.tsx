@@ -41,10 +41,27 @@ export const AllDCsScreen: React.FC<AllDCsScreenProps> = ({ currentUser }) => {
         queryFn: () => api.getDCsForCompany(currentUser),
     });
 
+    const { data: orders = [] } = useQuery({
+        queryKey: ['orders', currentUser.id],
+        queryFn: () => api.getOrders(currentUser),
+    });
+
     const { data: company } = useCompanyQuery<Company>({
         queryKey: ['company', currentUser.company_id],
         queryFn: () => api.getCompany(currentUser.company_id),
     });
+
+    // Helper to find order name if parent_order is missing
+    const getOrderName = (dc: DeliveryChallan) => {
+        if (dc.parent_order?.order_number) return dc.parent_order.order_number;
+        if (!dc.order_number) return null;
+        
+        const found = orders.find(o => o.id === dc.order_number);
+        if (found) return found.order_number;
+
+        // Fallback to substring if it looks like a UUID
+        return dc.order_number.length > 20 ? dc.order_number.substring(0, 8).toUpperCase() : dc.order_number;
+    };
 
     const handleDownload = async (dc: DeliveryChallan) => {
         if (!company) return;
@@ -100,10 +117,10 @@ export const AllDCsScreen: React.FC<AllDCsScreenProps> = ({ currentUser }) => {
                                                 <span className="text-gray-400">{isSender ? 'To: ' : 'From: '}</span>
                                                 {partnerName} · {fmt(dc.created_at)}
                                             </p>
-                                            {(dc.order_number || dc.parent_order) && (
+                                            {getOrderName(dc) && (
                                                 <div className="mt-2">
                                                     <span className="text-[11px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-wider border border-indigo-100">
-                                                        Order: {dc.parent_order?.order_number || (dc.order_number && dc.order_number.length > 20 ? dc.order_number.substring(0, 8).toUpperCase() : dc.order_number)}
+                                                        Order: {getOrderName(dc)}
                                                     </span>
                                                 </div>
                                             )}

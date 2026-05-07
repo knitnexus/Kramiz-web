@@ -61,6 +61,7 @@ export const createDeliveryChallan = async (
     if (!hasPermission(currentUser.role, 'CREATE_DC')) {
         throw new Error('You do not have permission to create delivery challans');
     }
+    if (!params.order_number) throw new Error('An Order link is required for every Delivery Challan');
     if (!params.items?.length) throw new Error('At least one item is required');
     if (!params.receiver_company_id && !params.receiver_contact_id) {
         throw new Error('A recipient is required');
