@@ -130,15 +130,29 @@ export const SettingsListPanel: React.FC<ListPanelProps> = ({
                     )}
                 </Card>
 
-                <SectionLabel label="App" />
+                <SectionLabel label="Legal & Support" />
                 <Card>
-                    <div className="px-4 py-4 flex items-center gap-4">
-                        <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-lg">ℹ️</div>
-                        <div>
-                            <p className="text-[15px] text-gray-800">Kramiz Beta</p>
-                            <p className="text-[12px] text-gray-400">Production follow-up simplified</p>
-                        </div>
-                    </div>
+                    <ListRow 
+                        icon="📄" 
+                        iconBg="bg-gray-100" 
+                        label="Terms of Service"     
+                        onClick={() => navigate('/settings/terms')} 
+                        active={activeRoute === 'terms'} 
+                    />
+                    <ListRow 
+                        icon="🛡️" 
+                        iconBg="bg-gray-100" 
+                        label="Privacy Policy"     
+                        onClick={() => navigate('/settings/privacy')} 
+                        active={activeRoute === 'privacy'} 
+                    />
+                    <ListRow 
+                        icon="👋" 
+                        iconBg="bg-green-100" 
+                        label="Contact Us"     
+                        onClick={() => navigate('/settings/contact')} 
+                        active={activeRoute === 'contact'} 
+                    />
                 </Card>
             </div>
         </div>

@@ -7,7 +7,7 @@ export const SubScreenContent = memo<{
 }>(({ title, onBack, children }) => (
     <div className="flex flex-col h-full bg-[#f0f2f5] w-full min-w-0 overflow-hidden">
         {/* Header - Back button visible on mobile only */}
-        <div className="bg-white px-4 pt-[calc(12px+env(safe-area-inset-top))] pb-4 md:py-6 flex items-center gap-3 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] z-10 sticky top-0">
+        <div className="bg-white px-4 pt-[calc(16px+env(safe-area-inset-top))] pb-4 md:py-6 flex items-center gap-3 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] z-10 sticky top-0">
 
             <button
                 onClick={onBack}

@@ -66,7 +66,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser }) => 
 
     const ListPanel = (
         <div className="flex flex-col h-full w-full bg-[#f0f2f5] min-w-0 overflow-hidden">
-            <div className="bg-white border-b border-gray-100 px-5 pt-[calc(20px+env(safe-area-inset-top))] pb-4 shadow-sm flex justify-between items-center">
+            <div className="bg-white border-b border-gray-100 px-5 pt-[calc(16px+env(safe-area-inset-top))] pb-4 shadow-sm flex justify-between items-center">
                 <div>
                     <p className="text-[11px] text-gray-400 mb-1">
                         {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}

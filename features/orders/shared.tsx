@@ -16,7 +16,7 @@ export const SubScreenHeader: React.FC<{
     onBack: () => void;
     action?: React.ReactNode;
 }> = ({ title, subtitle, onBack, action }) => (
-    <div className="bg-white px-4 py-4 md:py-6 flex flex-col gap-1 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] z-10 sticky top-0 flex-shrink-0">
+    <div className="bg-white px-4 pt-[calc(16px+env(safe-area-inset-top))] pb-4 md:py-6 flex flex-col gap-1 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] z-10 sticky top-0 flex-shrink-0">
         <div className="flex items-center gap-3">
             <button
                 onClick={onBack}

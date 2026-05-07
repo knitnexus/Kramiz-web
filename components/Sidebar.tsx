@@ -48,11 +48,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
             {/* Header & View Controls */}
             <div className="bg-[#f0f2f5] border-b sticky top-0 z-10 flex flex-col pt-[calc(16px+env(safe-area-inset-top))] min-w-0 overflow-hidden">
 
-                <div className="px-5 py-4 flex justify-between items-center min-w-0">
+                <div className="px-5 pt-3 pb-1.5 flex justify-between items-center min-w-0">
                     <h1 className="text-[22px] font-bold text-gray-900 tracking-tight">Chats</h1>
                 </div>
 
-                <div className="px-4 pb-3 min-w-0">
+                <div className="px-4 pb-1 min-w-0">
                     <div className="relative">
                         <select 
                             value={activeTab} 
@@ -70,7 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                     </div>
                 </div>
 
-                <div className="px-4 pb-4 min-w-0">
+                <div className="px-4 pb-1 min-w-0">
                     <div className="flex bg-gray-200/50 p-1 rounded-xl">
                         <button 
                             onClick={() => setSidebarView('ORDER')} 

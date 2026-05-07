@@ -26,9 +26,10 @@ export const AllInwardChallansScreen: React.FC<AllInwardChallansScreenProps> = (
     const [editIc, setEditIc] = useState<InwardChallan | null>(null);
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
-    const { data: ics = [], isLoading } = useQuery<InwardChallan[]>({
+    const { data: ics = [], isLoading, error: queryError, refetch } = useQuery<InwardChallan[]>({
         queryKey: ['ics', currentUser.company_id],
         queryFn: () => api.getInwardChallansReceived(currentUser),
+        retry: 1, // Don't retry infinitely
     });
 
     const deleteMutation = useMutation({
@@ -82,12 +83,23 @@ export const AllInwardChallansScreen: React.FC<AllInwardChallansScreenProps> = (
                         <div className="flex items-center justify-center h-40">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#008069]"></div>
                         </div>
+                    ) : queryError ? (
+                        <div className="bg-red-50 border border-red-100 rounded-2xl p-6 text-center">
+                            <p className="text-red-600 font-bold mb-2">Failed to load inward challans</p>
+                            <p className="text-red-500 text-xs mb-4">{(queryError as Error).message}</p>
+                            <button 
+                                onClick={() => refetch()}
+                                className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-bold"
+                            >
+                                Try Again
+                            </button>
+                        </div>
                     ) : ics.length === 0 ? (
                         <EmptyState icon="📥" title="No inward challans" subtitle="Record goods you've received" />
                     ) : (
                         ics.map(ic => {
                             const partner = resolveFrom(ic);
-                            const orderNo = ic.parent_order?.order_number || ic.order_number;
+                            const orderNo = ic.order_number;
                             const displayOrderNo = orderNo && orderNo.length > 20 
                                 ? orderNo.substring(0, 8).toUpperCase() 
                                 : (orderNo || 'N/A');

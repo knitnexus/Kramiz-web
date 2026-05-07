@@ -12,6 +12,9 @@ import { PartnersSettings } from './settings/PartnersSettings';
 import { SecuritySettings } from './settings/SecuritySettings';
 import { DangerSettings } from './settings/DangerSettings';
 import { SettingsListPanel } from './settings/SettingsListPanel';
+import { TermsOfService } from './settings/TermsOfService';
+import { PrivacyPolicy } from './settings/PrivacyPolicy';
+import { ContactUs } from './settings/ContactUs';
 
 interface SettingsPageProps {
     currentUser: User;
@@ -71,6 +74,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onLogou
                     <Route path="/partners" element={<PartnersSettings currentUser={currentUser} />} />
                     <Route path="/security" element={<SecuritySettings currentUser={currentUser} />} />
                     <Route path="/danger" element={<DangerSettings currentUser={currentUser} onLogout={onLogout} />} />
+                    <Route path="/terms" element={<TermsOfService />} />
+                    <Route path="/privacy" element={<PrivacyPolicy />} />
+                    <Route path="/contact" element={<ContactUs />} />
                 </Routes>
             </div>
         </div>

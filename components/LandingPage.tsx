@@ -52,7 +52,7 @@ export const LandingPage: React.FC<LandingPageProps> = () => {
         <div className="min-h-screen bg-[#FAFAFA] font-sans text-gray-900 selection:bg-[#008069] selection:text-white flex flex-col">
 
             {/* Sticky Navigation */}
-            <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/90 backdrop-blur-md shadow-sm py-4' : 'bg-transparent py-6'}`}>
+            <nav className={`fixed top-0 w-full z-50 transition-all duration-300 pt-[calc(16px+env(safe-area-inset-top))] ${scrolled ? 'bg-white/90 backdrop-blur-md shadow-sm pb-4' : 'bg-transparent pb-6'}`}>
                 <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
                     <div className="flex items-center gap-2">
                         <img src="/logo_v2.png" alt="Kramiz" className="h-8 md:h-10 object-contain" />

@@ -417,7 +417,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
     return (
         <div className="flex h-full w-full relative">
             <div className="flex flex-col h-full bg-[#efeae2] relative flex-1">
-                <div className="bg-[#008069] text-white px-4 pt-[calc(12px+env(safe-area-inset-top))] pb-3 flex items-center shadow-md z-30 justify-between">
+                <div className="bg-[#008069] text-white px-4 pt-[calc(16px+env(safe-area-inset-top))] pb-3 flex items-center shadow-md z-30 justify-between">
                     <div className="flex items-center flex-1 min-w-0">
                         <button onClick={onBack} className="mr-3 md:hidden"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
                         <div className="flex-1 min-w-0">

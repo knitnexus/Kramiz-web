@@ -60,8 +60,7 @@ const IC_SELECT = `
     ),
     receiver_company:companies!receiver_company_id(
         id, name, gst_number, kramiz_id
-    ),
-    parent_order:orders!order_number(id, order_number, style_number)
+    )
 `;
 
 // ═══════════════════════════════════════════════════════════════════════════════
