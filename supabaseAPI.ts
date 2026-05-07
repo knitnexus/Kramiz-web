@@ -718,8 +718,10 @@ export const api = {
     // FILES
     // ============================================
 
-    uploadFile: async (file: File, bucket: string = 'spec-files') => {
-        const fileExt = file.name.split('.').pop();
+    uploadFile: async (file: File | Blob, bucket: string = 'spec-files') => {
+        const name = (file as any).name || 'upload.bin';
+        const parts = name.split('.');
+        const fileExt = parts.length > 1 ? parts.pop() : 'bin';
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
         const filePath = `${fileName}`;
 

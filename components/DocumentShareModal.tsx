@@ -38,6 +38,37 @@ export const DocumentShareModal: React.FC<DocumentShareModalProps> = ({
         enabled: step === 'PICK_GROUP'
     });
 
+    // Data processing (Mirroring KramizSharePopup logic)
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const filteredChannels = useMemo(() => {
+        if (!searchQuery.trim()) return channels;
+        const q = searchQuery.toLowerCase();
+        return channels.filter(ch => {
+            const order = (ch as any).order || null; // Some channels might have order pre-fetched or need lookup
+            // If order not in ch, we should have fetched it in the query
+            return (
+                ch.name.toLowerCase().includes(q) ||
+                order?.order_number?.toLowerCase().includes(q)
+            );
+        });
+    }, [channels, searchQuery]);
+
+    const groupedChannels = useMemo(() => {
+        const groups: Record<string, { order: any; channels: Channel[] }> = {};
+        filteredChannels.forEach(ch => {
+            const order = (ch as any).order || null;
+            const key = order ? order.id : 'General';
+            if (!groups[key]) groups[key] = { order, channels: [] };
+            groups[key].channels.push(ch);
+        });
+        return Object.values(groups).sort((a, b) => {
+            if (!a.order) return 1;
+            if (!b.order) return -1;
+            return (b.order.created_at || '').localeCompare(a.order.created_at || '');
+        });
+    }, [filteredChannels]);
+
     const handleExternalShare = async () => {
         setSharing(true);
         try {
@@ -54,7 +85,6 @@ export const DocumentShareModal: React.FC<DocumentShareModalProps> = ({
         if (selectedChannelIds.size === 0) return;
         setSharing(true);
         try {
-            // 1. Convert base64 to File
             const byteCharacters = atob(pdfBase64);
             const byteNumbers = new Array(byteCharacters.length);
             for (let i = 0; i < byteCharacters.length; i++) {
@@ -64,10 +94,8 @@ export const DocumentShareModal: React.FC<DocumentShareModalProps> = ({
             const blob = new Blob([byteArray], { type: 'application/pdf' });
             const file = new File([blob], fileName, { type: 'application/pdf' });
 
-            // 2. Upload
             const publicUrl = await api.uploadFile(file);
 
-            // 3. Send message to all selected groups
             const targets = Array.from(selectedChannelIds);
             await Promise.all(targets.map(channelId => 
                 api.sendMessage(currentUser, channelId, `[FILE] ${publicUrl} | ${fileName}`)
@@ -124,39 +152,64 @@ export const DocumentShareModal: React.FC<DocumentShareModalProps> = ({
                 </div>
             ) : (
                 <div className="space-y-4">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between">
                         <p className="text-sm text-gray-500 font-medium">Select groups ({selectedChannelIds.size})</p>
-                        <button onClick={() => setStep('MODE')} className="text-xs font-black text-[#008069] underline">Back</button>
+                        <button onClick={() => setStep('MODE')} className="text-xs font-black text-[#008069] uppercase tracking-widest">Back</button>
                     </div>
 
-                    <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1 minimal-scrollbar">
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Search groups or order #..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-2xl py-3 pl-10 pr-4 text-sm focus:ring-2 focus:ring-[#008069] outline-none transition-all"
+                        />
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+                    </div>
+
+                    <div className="max-h-[350px] overflow-y-auto space-y-6 pr-1 minimal-scrollbar pb-2">
                         {loadingChannels ? (
-                            <div className="py-10 text-center text-gray-400 animate-pulse">Loading groups...</div>
-                        ) : channels.length === 0 ? (
-                            <div className="py-10 text-center text-gray-400 text-sm italic">No active groups found.</div>
+                            <div className="py-10 text-center text-gray-400 animate-pulse font-bold">Fetching groups...</div>
+                        ) : groupedChannels.length === 0 ? (
+                            <div className="py-10 text-center text-gray-400 text-sm italic">No matching groups found.</div>
                         ) : (
-                            channels.map(ch => (
-                                <button 
-                                    key={ch.id}
-                                    onClick={() => {
-                                        const next = new Set(selectedChannelIds);
-                                        if (next.has(ch.id)) next.delete(ch.id); else next.add(ch.id);
-                                        setSelectedChannelIds(next);
-                                    }}
-                                    disabled={sharing}
-                                    className={`w-full flex items-center gap-3 p-3 border rounded-xl transition-all text-left group ${selectedChannelIds.has(ch.id) ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100 hover:bg-white'}`}
-                                >
-                                    <div className={`w-10 h-10 rounded-lg border flex items-center justify-center font-black text-xs shadow-sm transition-colors ${selectedChannelIds.has(ch.id) ? 'bg-[#008069] text-white border-[#008069]' : 'bg-white text-gray-700 border-gray-100'}`}>
-                                        {ch.name[0]}
+                            groupedChannels.map(({ order, channels: orderChannels }) => (
+                                <div key={order?.id || 'general'} className="space-y-2">
+                                    <div className="flex items-center gap-2 px-1">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                            {order ? `Order ${order.order_number}` : 'General Groups'}
+                                        </span>
+                                        {order?.style_number && (
+                                            <span className="text-[10px] font-bold text-gray-300">({order.style_number})</span>
+                                        )}
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className={`text-sm font-bold truncate ${selectedChannelIds.has(ch.id) ? 'text-[#008069]' : 'text-gray-800'}`}>{ch.name}</p>
-                                        <p className="text-[10px] text-gray-400 uppercase font-black tracking-tighter mt-0.5">{ch.type} GROUP</p>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {orderChannels.map(ch => (
+                                            <button 
+                                                key={ch.id}
+                                                onClick={() => {
+                                                    const next = new Set(selectedChannelIds);
+                                                    if (next.has(ch.id)) next.delete(ch.id); else next.add(ch.id);
+                                                    setSelectedChannelIds(next);
+                                                }}
+                                                disabled={sharing}
+                                                className={`w-full flex items-center gap-3 p-3.5 border rounded-2xl transition-all text-left shadow-sm ${selectedChannelIds.has(ch.id) ? 'bg-green-50 border-green-200 ring-1 ring-green-100' : 'bg-white border-gray-100 hover:bg-gray-50'}`}
+                                            >
+                                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs transition-colors ${selectedChannelIds.has(ch.id) ? 'bg-[#008069] text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                                    {ch.name[0].toUpperCase()}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`text-sm font-bold truncate ${selectedChannelIds.has(ch.id) ? 'text-[#008069]' : 'text-gray-800'}`}>{ch.name}</p>
+                                                    <p className="text-[9px] text-gray-400 uppercase font-black tracking-tighter mt-0.5 opacity-60">Group Channel</p>
+                                                </div>
+                                                {selectedChannelIds.has(ch.id) && (
+                                                    <div className="h-6 w-6 bg-[#008069] rounded-full flex items-center justify-center text-white text-[10px] font-black shadow-sm">✓</div>
+                                                )}
+                                            </button>
+                                        ))}
                                     </div>
-                                    {selectedChannelIds.has(ch.id) && (
-                                        <div className="h-6 w-6 bg-[#008069] rounded-full flex items-center justify-center text-white text-[10px] font-black">✓</div>
-                                    )}
-                                </button>
+                                </div>
                             ))
                         )}
                     </div>
@@ -164,9 +217,9 @@ export const DocumentShareModal: React.FC<DocumentShareModalProps> = ({
                     <button 
                         onClick={handleSendToGroups}
                         disabled={selectedChannelIds.size === 0 || sharing}
-                        className="w-full py-4 bg-[#008069] text-white font-bold rounded-2xl shadow-lg hover:bg-[#006a57] disabled:opacity-50 transition-all active:scale-95 flex items-center justify-center gap-2 mt-4"
+                        className="w-full py-4 bg-[#008069] text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-lg hover:bg-[#006a57] disabled:opacity-50 transition-all active:scale-95 flex items-center justify-center gap-2 mt-2"
                     >
-                        {sharing ? 'Sending Document...' : `Send to ${selectedChannelIds.size} Selected Groups`}
+                        {sharing ? 'Sending Document...' : `Send to ${selectedChannelIds.size} Groups`}
                     </button>
                 </div>
             )}

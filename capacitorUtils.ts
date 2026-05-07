@@ -220,19 +220,30 @@ export const downloadFile = async (url: string, fileName: string): Promise<strin
     }
 
     try {
+        // Request permissions first (Android 10+ needs this for some directories)
+        const perm = await Filesystem.requestPermissions();
+        if (perm.publicStorage !== 'granted') {
+            console.warn('[Capacitor] Storage permissions not granted');
+        }
+
         const response = await fetch(url);
         const blob = await response.blob();
         const reader = new FileReader();
 
         return new Promise((resolve) => {
             reader.onloadend = async () => {
-                const base64Data = (reader.result as string).split(',')[1];
+                // Strip prefix if present
+                const raw = reader.result as string;
+                const base64Data = raw.includes(',') ? raw.split(',')[1] : raw;
+                
                 const result = await Filesystem.writeFile({
                     path: `Kramiz/${fileName}`,
                     data: base64Data,
                     directory: Directory.Documents,
                     recursive: true,
                 });
+                
+                alert(`Saved to Documents/Kramiz/${fileName}`);
                 console.log('[Capacitor] File saved:', result.uri);
                 resolve(result.uri);
             };
@@ -240,6 +251,7 @@ export const downloadFile = async (url: string, fileName: string): Promise<strin
         });
     } catch (error) {
         console.error('[Capacitor] File download error:', error);
+        alert('Failed to download file');
         return null;
     }
 };
@@ -481,7 +493,9 @@ export const shareFile = async (
     if (!isNative) {
         // Fallback: Trigger download on web
         const a = document.createElement('a');
-        a.href = `data:application/pdf;base64,${base64Data}`;
+        // Ensure prefix is present for data URI
+        const prefix = base64Data.startsWith('data:') ? '' : 'data:application/pdf;base64,';
+        a.href = `${prefix}${base64Data}`;
         a.download = fileName;
         document.body.appendChild(a);
         a.click();
@@ -490,10 +504,13 @@ export const shareFile = async (
     }
 
     try {
-        // Save to temporary directory first
+        // Strip data: prefix if the caller accidentally included it
+        const cleanBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+
+        // Save to cache directory first (Share plugin needs a local URI)
         const result = await Filesystem.writeFile({
-            path: `Download/${fileName}`,
-            data: base64Data,
+            path: fileName, // Simplified path in cache
+            data: cleanBase64,
             directory: Directory.Cache,
         });
 
@@ -502,9 +519,9 @@ export const shareFile = async (
             files: [result.uri],
             dialogTitle: title,
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Capacitor] Share file error:', error);
-        alert('Failed to share file');
+        alert('Failed to share: ' + (error.message || 'Internal error'));
     }
 };
 
