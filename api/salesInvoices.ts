@@ -101,28 +101,6 @@ export const createSalesInvoice = async (
             .in('id', params.linked_dc_ids);
     }
 
-    // [Auto-Mirror: Option 1] Automatically copy this invoice to the buyer's purchase invoices if they are a Kramiz partner
-    if (params.buyer_company_id) {
-        const { error: mirrorError } = await supabase
-            .from('purchase_invoices')
-            .insert({
-                invoice_number:    inv_no,
-                seller_company_id: params.seller_company_id || currentUser.company_id,
-                buyer_company_id:  params.buyer_company_id, // The UUID of the partner
-                order_id:          params.order_id,
-                items:             params.items,
-                gst_type:          params.gst_type === 'NONE' ? null : params.gst_type,
-                gst_rate:          params.gst_type === 'NONE' ? null : params.gst_rate,
-                gst_amount,
-                subtotal,
-                total_amount,
-                due_date:          params.due_date,
-                notes:             params.notes,
-                created_by:        currentUser.id, // Vendor created it
-            });
-            
-        if (mirrorError) console.error("Auto-mirror failed:", mirrorError.message);
-
         // ── Notify the buyer ────────────────────────────────────────────────
         try {
             const sellerName = currentUser.company?.name || 'A partner';
@@ -135,7 +113,6 @@ export const createSalesInvoice = async (
         } catch (notifyErr) {
             console.error('Non-critical notification failure:', notifyErr);
         }
-    }
 
     return data as Invoice;
 };
@@ -194,27 +171,6 @@ export const updateSalesInvoice = async (
 
     if (error) throw new Error(error.message);
 
-    // [Auto-Mirror Update] Push changes to the mirrored purchase invoice
-    if (data && data.buyer_company_id) {
-        const { error: mirrorUpdateError } = await supabase
-            .from('purchase_invoices')
-            .update({
-                buyer_company_id:  data.buyer_company_id, // in case it changed
-                order_id:          data.order_id,
-                items:             data.items,
-                gst_type:          data.gst_type,
-                gst_rate:          data.gst_rate,
-                gst_amount:        data.gst_amount,
-                subtotal:          data.subtotal,
-                total_amount:      data.total_amount,
-                due_date:          data.due_date,
-                notes:             data.notes,
-            })
-            .eq('invoice_number', data.invoice_number)
-            .eq('seller_company_id', data.seller_company_id);
-            
-        if (mirrorUpdateError) console.error("Auto-mirror update failed:", mirrorUpdateError.message);
-    }
 
     return data as Invoice;
 };
@@ -246,14 +202,6 @@ export const deleteSalesInvoice = async (currentUser: User, invoiceId: string): 
             .in('id', invoice.linked_dc_ids);
     }
 
-    // [Auto-Mirror Delete] Remove the mirrored purchase invoice
-    if (invoice?.invoice_number) {
-        await supabase
-            .from('purchase_invoices')
-            .delete()
-            .eq('invoice_number', invoice.invoice_number)
-            .eq('seller_company_id', currentUser.company_id);
-    }
 };
 
 export const getSalesInvoicesForOrder = async (orderId: string, orderNumber?: string): Promise<Invoice[]> => {

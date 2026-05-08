@@ -157,7 +157,6 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
     // --- Submit ---
     const handleCreate = async () => {
         if (!selectedBuyer) return alert('Please select a buyer from the list');
-        if (!orderId) return alert('Please select an Order to link this invoice to');
         const validItems = items.filter(it => it.description && it.quantity && it.rate);
         if (validItems.length === 0) return alert('Add at least one complete line item');
         
@@ -435,7 +434,7 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
                     <button onClick={onClose} className="flex-1 py-3 text-gray-500 font-semibold rounded-2xl hover:bg-gray-100 transition-all">Cancel</button>
                     <button
                         onClick={handleCreate}
-                        disabled={!selectedBuyer || !orderId || items.some(it => !it.description || !it.quantity || !it.rate) || saving}
+                        disabled={!selectedBuyer || items.some(it => !it.description || !it.quantity || !it.rate) || saving}
                         className="flex-[2] py-3 bg-[#008069] text-white font-bold rounded-2xl shadow-lg hover:shadow-xl hover:bg-[#006a57] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
                     >
                         {saving ? (
@@ -447,6 +446,7 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
 
             {isAddingContact && (
                 <AddContactModal
+                    currentUser={currentUser}
                     form={contactForm}
                     setForm={setContactForm}
                     isEditing={false}

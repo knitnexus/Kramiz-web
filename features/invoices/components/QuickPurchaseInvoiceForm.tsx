@@ -161,7 +161,6 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
         const finalSellerName = selectedSeller ? selectedSeller.name : sellerSearch.trim();
         if (!finalSellerName) return alert('Please enter or select a vendor');
         if (!vendorInvoiceNo.trim()) return alert('Please enter the vendor\'s invoice number');
-        if (!orderId) return alert('Please select an Order to link this bill to');
         
         const validItems = items.filter(it => it.description && it.rate);
         if (validItems.length === 0) return alert('Add at least one complete line item');

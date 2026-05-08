@@ -792,7 +792,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                                         <p className="text-sm font-bold truncate text-gray-800">{m.name}</p>
                                         <p className="text-[10px] text-gray-400 font-medium truncate">{m.company?.name || 'Kramiz Team'}</p>
                                     </div>
-                                    {canRemoveMembers && m.id !== currentUser.id && (
+                                    {canRemoveMembers && m.id !== currentUser.id && m.company_id === currentUser.company_id && (
                                         <button 
                                             onClick={() => {
                                                 if (window.confirm(`Remove ${m.name} from this group?`)) {

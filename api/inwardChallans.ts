@@ -30,7 +30,7 @@ import { User, InwardChallan, DCItem, hasPermission } from '../types';
 // ── IC Number Generator ─────────────────────────────────────────────────────
 
 const todayStamp = (): string => {
-    const d  = new Date();
+    const d = new Date();
     const yy = String(d.getFullYear()).slice(2);
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
@@ -75,23 +75,22 @@ const IC_SELECT = `
 export const createInwardChallan = async (
     currentUser: User,
     params: {
-        channel_id?:        string;   // optional — link to a chat
-        linked_dc_id?:      string;   // optional — the outward DC this responds to
+        channel_id?: string;   // optional — link to a chat
+        linked_dc_id?: string;   // optional — the outward DC this responds to
         sender_company_id?: string;   // optional — if from a Kramiz partner
         sender_contact_id?: string;   // optional — if from a manual contact
-        order_number?:      string;   // your internal order ref
-        ref_order_number?:  string;   // sender's order ref (from their DC)
-        items_received:     DCItem[]; // what actually arrived
-        discrepancies?:     string;   // free-text: shortages, damage, wrong items
-        status?:            'RECEIVED' | 'RETURNED';
-        notes?:             string;
-        created_at?:        string;
+        order_number?: string;   // your internal order ref
+        ref_order_number?: string;   // sender's order ref (from their DC)
+        items_received: DCItem[]; // what actually arrived
+        discrepancies?: string;   // free-text: shortages, damage, wrong items
+        status?: 'RECEIVED' | 'RETURNED';
+        notes?: string;
+        created_at?: string;
     }
 ): Promise<InwardChallan> => {
     if (!hasPermission(currentUser.role, 'CREATE_IC')) {
         throw new Error('You do not have permission to create inward challans');
     }
-    if (!params.order_number) throw new Error('An Order link is required for every Inward Challan');
     if (!params.items_received?.length) {
         throw new Error('At least one item is required on an Inward Challan');
     }
@@ -113,14 +112,6 @@ export const createInwardChallan = async (
         .single();
 
     if (error) throw new Error(error.message);
-
-    // If linked to a DC, mark that DC as RECEIVED
-    if (params.linked_dc_id) {
-        await supabase
-            .from('delivery_challans')
-            .update({ status: 'RECEIVED' })
-            .eq('id', params.linked_dc_id);
-    }
 
     return data as InwardChallan;
 };
@@ -240,11 +231,11 @@ export const updateInwardChallan = async (
     currentUser: User,
     icId: string,
     updates: Partial<{
-        items_received:    DCItem[];
-        discrepancies:     string;
-        notes:             string;
-        order_number:      string;
-        ref_order_number:  string;
+        items_received: DCItem[];
+        discrepancies: string;
+        notes: string;
+        order_number: string;
+        ref_order_number: string;
     }>
 ): Promise<InwardChallan> => {
     if (!hasPermission(currentUser.role, 'EDIT_IC')) {

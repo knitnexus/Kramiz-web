@@ -228,6 +228,7 @@ export const AllInwardChallansScreen: React.FC<AllInwardChallansScreenProps> = (
                     <ChallanDetailView
                         data={ic}
                         type="IC"
+                        orderName={getOrderName(ic)}
                         onClose={() => navigate('/dashboard/ics')}
                     />
                 )}

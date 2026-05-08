@@ -5,6 +5,7 @@ import { HashRouter, Routes, Route, Navigate, useNavigate, useParams } from 'rea
 import { Login } from './components/Login';
 import { api } from './supabaseAPI';
 import { LandingPage } from './components/LandingPage';
+import { LandingPage2 } from './components/LandingPage2';
 import { Signup } from './components/Signup';
 import { User, Message } from './types';
 import { saveSession, loadSession, clearSession } from './sessionUtils';
@@ -147,6 +148,7 @@ const AppRoutes: React.FC<{
         <Routes>
             {/* Public Routes */}
             <Route path="/" element={user ? <Navigate to="/chats" replace /> : (isNative ? <Navigate to="/login" replace /> : <LandingPage />)} />
+            <Route path="/lp2" element={<LandingPage2 />} />
             <Route path="/login" element={user ? <Navigate to="/chats" replace /> : <Login onLogin={handleLogin} onBack={() => navigate('/')} />} />
             <Route path="/signup" element={user ? <Navigate to="/chats" replace /> : <Signup onBack={() => navigate('/')} onSignupSuccess={() => navigate('/login')} />} />
 

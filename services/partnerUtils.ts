@@ -11,11 +11,11 @@ import { supabaseAdmin } from '../supabaseClient';
 import { triggerRemoteNotification } from '../notificationUtils';
 
 export interface UnifiedPartner {
-    id:      string;
-    name:    string;
-    gst?:    string;
+    id: string;
+    name: string;
+    gst?: string;
     address?: string;
-    state?:   string;
+    state?: string;
     pincode?: string;
     isPlatform: boolean; // True if it's a registered Kramiz company
     raw?: any;
@@ -76,36 +76,36 @@ function wrapPartner(comp?: Company, cont?: Contact, fallbackName?: string): Uni
     // Priority 1: Use the manually saved contact details if present.
     if (cont) {
         return {
-            id:         cont.id,
-            name:       cont.name,
-            gst:        cont.gst_number,
-            address:    cont.address,
-            state:      cont.state,
-            pincode:    cont.pincode,
+            id: cont.id,
+            name: cont.name,
+            gst: cont.gst_number,
+            address: cont.address,
+            state: cont.state,
+            pincode: cont.pincode,
             isPlatform: !!cont.linked_company_id,
-            raw:        cont
+            raw: cont
         };
     }
 
     // Priority 2: Use platform company details if no manual contact is linked.
     if (comp) {
         return {
-            id:         comp.id,
-            name:       comp.name,
-            gst:        comp.gst_number,
-            address:    comp.address,
-            state:      comp.state,
-            pincode:    comp.pincode,
+            id: comp.id,
+            name: comp.name,
+            gst: comp.gst_number,
+            address: comp.address,
+            state: comp.state,
+            pincode: comp.pincode,
             isPlatform: true,
-            raw:        comp
+            raw: comp
         };
     }
 
     // Priority 3: Fallback to a raw text name (for offline traders/manual entries)
     if (fallbackName && fallbackName.length > 0) {
         return {
-            id:         'manual',
-            name:       fallbackName,
+            id: 'manual',
+            name: fallbackName,
             isPlatform: false
         };
     }
@@ -113,108 +113,3 @@ function wrapPartner(comp?: Company, cont?: Contact, fallbackName?: string): Uni
     return null;
 }
 
-/**
- * Finds any manual contacts with a specific GST or phone and "bridges" them to a real company.
- * This includes updating groups (channels) to include the new company's staff.
- */
-export const bridgeContactToCompany = async (companyId: string) => {
-    try {
-        // 1. Get details of the company to bridge
-        const { data: company } = await supabaseAdmin
-            .from('companies')
-            .select('*')
-            .eq('id', companyId)
-            .single();
-
-        if (!company) return;
-
-        // 2. Get admins of the company (to match by phone)
-        const { data: admins } = await supabaseAdmin
-            .from('users')
-            .select('id, phone')
-            .eq('company_id', companyId)
-            .eq('role', 'ADMIN');
-        
-        const adminIds = (admins || []).map(a => a.id);
-        const adminPhones = (admins || []).map(a => a.phone).filter(Boolean);
-
-        // 3. Find all contacts that were manually created for this identity
-        // We match by GST or by any of the admin phone numbers.
-        let filterParts: string[] = [];
-        if (company.gst_number) filterParts.push(`gst_number.eq.${company.gst_number}`);
-        if (adminPhones.length > 0) filterParts.push(`phone.in.(${adminPhones.join(',')})`);
-
-        if (filterParts.length === 0) return;
-
-        const { data: contactsToBridge } = await supabaseAdmin
-            .from('contacts')
-            .select('id, owner_company_id')
-            .or(filterParts.join(','))
-            .is('linked_company_id', null);
-
-        if (!contactsToBridge || contactsToBridge.length === 0) return;
-
-        for (const contact of contactsToBridge) {
-            // A. Link the contact record itself
-            await supabaseAdmin
-                .from('contacts')
-                .update({
-                    linked_company_id: company.id,
-                    name:    company.name,
-                    address: company.address,
-                    state:   company.state,
-                    pincode: company.pincode,
-                })
-                .eq('id', contact.id);
-
-            // B. Notify the contact owner that their contact has joined Kramiz
-            try {
-                await triggerRemoteNotification({
-                    companyId: contact.owner_company_id,
-                    title:     'Partner Joined Kramiz! ✨',
-                    body:      `${company.name} is now on Kramiz. You can now collaborate on orders directly.`,
-                    data:      { type: 'BRIDGE', company_id: company.id }
-                });
-            } catch (notifyErr) {
-                console.error('[Auto-Bridge] Notification failure:', notifyErr);
-            }
-
-            // C. Find all channels linked to this contact
-            const { data: channels } = await supabaseAdmin
-                .from('channels')
-                .select('id')
-                .eq('contact_id', contact.id);
-
-            if (channels && channels.length > 0) {
-                console.log(`[Auto-Bridge] Found ${channels.length} channels for contact ${contact.id}`);
-                for (const chan of channels) {
-                    // i. Update the channel record
-                    await supabaseAdmin
-                        .from('channels')
-                        .update({
-                            vendor_id:  company.id,
-                            contact_id: null,
-                            type:       'VENDOR'
-                        })
-                        .eq('id', chan.id);
-
-                    // ii. Add new company admins to the channel so they can see it
-                    if (adminIds.length > 0) {
-                        const newMembers = adminIds.map(uid => ({
-                            channel_id: chan.id,
-                            user_id:    uid,
-                            added_by:   uid // Self-join as system entry
-                        }));
-                        
-                        await supabaseAdmin
-                            .from('channel_members')
-                            .upsert(newMembers, { onConflict: 'channel_id, user_id' });
-                    }
-                }
-            }
-            console.log(`[Auto-Bridge] Successfully bridged contact ${contact.id} to company ${company.id}`);
-        }
-    } catch (err) {
-        console.error('[Auto-Bridge] Failure:', err);
-    }
-};

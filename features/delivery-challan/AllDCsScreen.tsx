@@ -258,6 +258,7 @@ export const AllDCsScreen: React.FC<AllDCsScreenProps> = ({ currentUser }) => {
                     <ChallanDetailView
                         data={dc}
                         type="DC"
+                        orderName={getOrderName(dc)}
                         onClose={() => navigate('/dashboard/dcs')}
                     />
                 )}

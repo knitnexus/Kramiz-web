@@ -128,8 +128,6 @@ export const api = {
 
         if (userError) throw new Error('Failed to create user: ' + userError.message);
 
-        // ── Contacts & Channels Auto-Bridge ─────────────────────────────────
-        await partnerUtils.bridgeContactToCompany(newCompany.id);
 
         return { user: newUser as User, company: newCompany as Company, kramizId };
     },

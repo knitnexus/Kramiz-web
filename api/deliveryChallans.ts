@@ -45,23 +45,22 @@ const DC_SELECT = `
 export const createDeliveryChallan = async (
     currentUser: User,
     params: {
-        channel_id?:          string;
+        channel_id?: string;
         receiver_company_id?: string;
         receiver_contact_id?: string;
-        order_number?:        string;
-        ref_order_number?:    string;
-        items:                DCItem[];
-        driver_name?:         string;
-        driver_phone?:        string;
-        driver_photo_url?:    string;
-        notes?:               string;
-        created_at?:          string;
+        order_number?: string;
+        ref_order_number?: string;
+        items: DCItem[];
+        driver_name?: string;
+        driver_phone?: string;
+        driver_photo_url?: string;
+        notes?: string;
+        created_at?: string;
     }
 ): Promise<DeliveryChallan> => {
     if (!hasPermission(currentUser.role, 'CREATE_DC')) {
         throw new Error('You do not have permission to create delivery challans');
     }
-    if (!params.order_number) throw new Error('An Order link is required for every Delivery Challan');
     if (!params.items?.length) throw new Error('At least one item is required');
     if (!params.receiver_company_id && !params.receiver_contact_id) {
         throw new Error('A recipient is required');
@@ -82,51 +81,6 @@ export const createDeliveryChallan = async (
 
     if (error) throw new Error(error.message);
 
-    // ── AUTO-BRIDGE: Create Inward Challan for the Receiver ────────────────
-    if (params.receiver_company_id) {
-        try {
-            // Generate IC number for the receiver (using their company context)
-            const d = new Date();
-            const yy = String(d.getFullYear()).slice(2);
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            const icPrefix = `IC-${yy}${mm}${dd}`;
-            
-            const { count } = await supabaseAdmin
-                .from('inward_challans')
-                .select('*', { count: 'exact', head: true })
-                .eq('receiver_company_id', params.receiver_company_id)
-                .like('ic_number', `${icPrefix}%`);
-            
-            const seq = String((count || 0) + 1).padStart(3, '0');
-            const ic_number = `${icPrefix}-${seq}`;
-
-            await supabase.from('inward_challans').insert({
-                ic_number,
-                channel_id:          params.channel_id,
-                linked_dc_id:        data.id,
-                sender_company_id:   currentUser.company_id,
-                receiver_company_id: params.receiver_company_id,
-                order_number:        params.order_number,
-                ref_order_number:    dc_number, // Use the sender's DC number as their reference
-                items_received:      params.items,
-                status:              'TO_RECEIVE', // Use defined type status
-                notes:               'Auto-generated from Partner Dispatch'
-            });
-
-            // ── Notify the receiver ──────────────────────────────────────────────
-            const senderName = currentUser.company?.name || 'A partner';
-            await triggerRemoteNotification({
-                companyId: params.receiver_company_id,
-                title:     'New Delivery Challan 🚚',
-                body:      `${senderName} has dispatched ${dc_number}. Check your Inward Log.`,
-                data:      { type: 'DC', dc_id: data.id }
-            });
-        } catch (bridgeErr) {
-            console.error('DC Auto-bridge failed:', bridgeErr);
-        }
-    }
-
     return data as DeliveryChallan;
 };
 
@@ -134,7 +88,7 @@ export const getDCsForCompany = async (currentUser: User): Promise<DeliveryChall
     const { data, error } = await supabase
         .from('delivery_challans')
         .select(DC_SELECT)
-        .or(`sender_company_id.eq.${currentUser.company_id},receiver_company_id.eq.${currentUser.company_id}`)
+        .eq('sender_company_id', currentUser.company_id)
         .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);
@@ -204,14 +158,14 @@ export const updateDeliveryChallan = async (
     updates: Partial<{
         receiver_company_id: string;
         receiver_contact_id: string;
-        order_number:        string;
-        ref_order_number:    string;
-        items:               DCItem[];
-        driver_name:         string;
-        driver_phone:        string;
-        driver_photo_url:    string;
-        notes:               string;
-        created_at:          string;
+        order_number: string;
+        ref_order_number: string;
+        items: DCItem[];
+        driver_name: string;
+        driver_phone: string;
+        driver_photo_url: string;
+        notes: string;
+        created_at: string;
     }>
 ): Promise<DeliveryChallan> => {
     if (!hasPermission(currentUser.role, 'EDIT_DC')) {
@@ -258,7 +212,7 @@ export const uploadDriverPhoto = async (
     currentUser: User,
     file: File
 ): Promise<string> => {
-    const ext  = file.name.split('.').pop() || 'jpg';
+    const ext = file.name.split('.').pop() || 'jpg';
     const path = `driver-photos/${currentUser.company_id}/${Date.now()}.${ext}`;
 
     const { error: uploadError } = await supabase.storage

@@ -169,7 +169,6 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
         const validItems = items.filter(it => it.description.trim() && it.quantity > 0);
         if (!validItems.length) { alert('Add at least one item with description and quantity'); return; }
         if (!selectedSender) { alert('Please select the sender from the list'); return; }
-        if (!orderId) { alert('Please select an Order to link this receipt to'); return; }
 
         setSaving(true);
         try {
@@ -203,7 +202,7 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
 
     return (
         <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-[2px]" onClick={onClose}>
-            <div className="w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col animate-in slide-in-from-bottom-4 duration-300" onClick={e => e.stopPropagation()}>
+            <div className="w-full max-w-xl bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col animate-in slide-in-from-bottom-4 duration-300" onClick={e => e.stopPropagation()}>
 
                 {/* Header: Fixed */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-none">

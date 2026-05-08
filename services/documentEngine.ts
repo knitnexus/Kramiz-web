@@ -111,6 +111,14 @@ export const generateDocumentPDF = async (
                             </tr>
                         `).join('')}
                     </tbody>
+                    <tfoot>
+                        <tr style="background: #f9fafb;">
+                            <td colspan="2" style="padding: 8px 10px; border: 1px solid #e5e7eb; font-size: 9px; font-weight: 800; text-align: right; text-transform: uppercase; color: #6b7280;">Total Quantity</td>
+                            <td style="padding: 8px 10px; border: 1px solid #e5e7eb; font-size: 11px; text-align: center; font-weight: 900; color: ${BLUE_DARK};">${(data.items || data.items_received || []).reduce((sum: number, it: any) => sum + (it.quantity || 0), 0).toLocaleString()}</td>
+                            <td style="padding: 8px 10px; border: 1px solid #e5e7eb;"></td>
+                            ${!isA5 ? `<td style="border: 1px solid #e5e7eb;"></td><td style="border: 1px solid #e5e7eb;"></td>` : ''}
+                        </tr>
+                    </tfoot>
                 </table>
 
                 <!-- Totals (Only for Invoices) -->

@@ -38,7 +38,7 @@ export const ItemsTable: React.FC<ItemsTableProps> = ({ items, onChange }) => {
     return (
         <div className="space-y-3 md:space-y-4">
             {/* Header row: Hidden on mobile */}
-            <div className="hidden md:grid grid-cols-[3fr_1fr_1.2fr_80px] gap-3 px-2">
+            <div className="hidden md:grid grid-cols-[2fr_1.5fr_1fr_80px] gap-3 px-2">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Description</p>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">Qty</p>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Unit</p>
@@ -47,7 +47,7 @@ export const ItemsTable: React.FC<ItemsTableProps> = ({ items, onChange }) => {
 
             {/* Item rows */}
             {items.map((item, i) => (
-                <div key={i} className="flex flex-col md:grid md:grid-cols-[3fr_1fr_1.2fr_80px] gap-2 md:gap-3 p-3 md:p-0 bg-gray-50/50 md:bg-transparent rounded-2xl md:rounded-none relative border border-gray-100 md:border-0 hover:bg-gray-50/80 md:hover:bg-transparent transition-all">
+                <div key={i} className="flex flex-col md:grid md:grid-cols-[2fr_1.5fr_1fr_80px] gap-2 md:gap-3 p-3 md:p-0 bg-gray-50/50 md:bg-transparent rounded-2xl md:rounded-none relative border border-gray-100 md:border-0 hover:bg-gray-50/80 md:hover:bg-transparent transition-all">
                     
                     {/* Row 1 (Mobile) / Col 1 (Desktop): Description */}
                     <div className="flex flex-col gap-1">
@@ -119,11 +119,24 @@ export const ItemsTable: React.FC<ItemsTableProps> = ({ items, onChange }) => {
                 </div>
             ))}
 
+            {/* Footer Summary: Total Quantity */}
+            <div className="flex md:grid md:grid-cols-[2fr_1.5fr_1fr_80px] gap-2 md:gap-3 px-2 pt-4 border-t border-gray-100">
+                <div className="hidden md:block" />
+                <div className="flex-1 flex items-center justify-center gap-3">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Total Quantity</p>
+                    <div className="px-4 py-1.5 bg-[#008069] text-white rounded-xl text-sm font-black min-w-[100px] text-center shadow-sm">
+                        {items.reduce((sum, it) => sum + (it.quantity || 0), 0).toLocaleString()}
+                    </div>
+                </div>
+                <div className="hidden md:block" />
+                <div className="hidden md:block" />
+            </div>
+
             {/* Add row */}
             <button
                 type="button"
                 onClick={addRow}
-                className="flex items-center gap-2 text-sm font-bold text-[#008069] hover:text-[#006a57] transition-colors mt-1"
+                className="flex items-center gap-2 text-sm font-bold text-[#008069] hover:text-[#006a57] transition-colors mt-2 pl-2"
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />

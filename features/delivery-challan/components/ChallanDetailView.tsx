@@ -2,12 +2,13 @@ import React from 'react';
 import { DeliveryChallan, InwardChallan } from '../../../types';
 
 interface ChallanDetailViewProps {
-    data:    DeliveryChallan | InwardChallan;
-    type:    'DC' | 'IC';
-    onClose: () => void;
+    data:      DeliveryChallan | InwardChallan;
+    type:      'DC' | 'IC';
+    orderName?: string;
+    onClose:   () => void;
 }
 
-export const ChallanDetailView: React.FC<ChallanDetailViewProps> = ({ data, type, onClose }) => {
+export const ChallanDetailView: React.FC<ChallanDetailViewProps> = ({ data, type, orderName, onClose }) => {
     const isDC = type === 'DC';
     const docNumber = isDC ? (data as DeliveryChallan).dc_number : (data as InwardChallan).ic_number;
     const items = (isDC ? (data as DeliveryChallan).items : (data as InwardChallan).items_received) || [];
@@ -15,6 +16,9 @@ export const ChallanDetailView: React.FC<ChallanDetailViewProps> = ({ data, type
     // Determine Sender/Receiver
     const senderName = data.sender_company?.name || (data as any).sender_contact?.name || 'Unknown Sender';
     const receiverName = (data as any).receiver_company?.name || (data as any).receiver_contact?.name || 'Unknown Receiver';
+
+    // Helper for order name fallback
+    const resolvedOrderName = orderName || (data as any).parent_order?.order_number || (data.order_number && data.order_number.length > 20 ? data.order_number.substring(0, 8).toUpperCase() : data.order_number);
 
     return (
         <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-[2px]" onClick={onClose}>
@@ -54,11 +58,11 @@ export const ChallanDetailView: React.FC<ChallanDetailViewProps> = ({ data, type
                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Date</span>
                             <p className="text-sm font-bold text-gray-900">{new Date(data.created_at || '').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                         </div>
-                        {((data as any).parent_order?.order_number || data.order_number) && (
+                        {resolvedOrderName && (
                             <div>
                                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Linked Order</span>
                                 <p className="text-sm font-bold text-indigo-600">
-                                    {(data as any).parent_order?.order_number || (data.order_number && data.order_number.length > 20 ? data.order_number.substring(0, 8).toUpperCase() : data.order_number)}
+                                    {resolvedOrderName}
                                 </p>
                             </div>
                         )}
@@ -87,6 +91,13 @@ export const ChallanDetailView: React.FC<ChallanDetailViewProps> = ({ data, type
                                     </div>
                                 </div>
                             ))}
+                            {/* Total Quantity Summary */}
+                            <div className="p-3 bg-[#008069]/5 border-t border-gray-100 flex justify-between items-center">
+                                <span className="text-[10px] font-black text-[#008069]/60 uppercase tracking-widest">Total Quantity</span>
+                                <span className="text-sm font-black text-[#008069]">
+                                    {items.reduce((sum, it) => sum + (it.quantity || 0), 0).toLocaleString()}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
