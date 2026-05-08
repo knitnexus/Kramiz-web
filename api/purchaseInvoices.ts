@@ -92,29 +92,11 @@ export const createPurchaseInvoice = async (
 // ── READ ─────────────────────────────────────────────────────────────────────
 
 export const getPurchaseInvoices = async (currentUser: User): Promise<Invoice[]> => {
-    // 1. Get all orders belonging to this company to ensure we can see linked bills
-    const { data: companyOrders } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('manufacturer_id', currentUser.company_id);
-    
-    const orderIds = (companyOrders || []).map(o => o.id);
-
-    // 2. Build robust filters
+    // Build clean filters: Invoices I created OR Invoices billed to my company
     const filters = [`created_by.eq.${currentUser.id}`];
     
     if (currentUser.company_id) {
         filters.push(`buyer_company_id.eq.${currentUser.company_id}`);
-    }
-    
-    if (currentUser.company?.name) {
-        filters.push(`buyer_company_id.ilike."${currentUser.company.name}"`);
-    }
-
-    // Include bills linked to any of the company's orders
-    if (orderIds.length > 0) {
-        // PostgREST 'in' syntax for .or() is (column.in.(val1,val2))
-        filters.push(`order_id.in.(${orderIds.join(',')})`);
     }
 
     const { data, error } = await supabase

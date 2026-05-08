@@ -11,27 +11,11 @@ import { User, Expense, hasPermission } from '../types';
  * FETCH: All expenses for the company.
  */
 export const getExpenses = async (currentUser: User): Promise<Expense[]> => {
-    // 1. Get company orders
-    const { data: companyOrders } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('manufacturer_id', currentUser.company_id);
-    
-    const orderIds = (companyOrders || []).map(o => o.id);
-
-    // 2. Build filters
+    // Build clean filters: Expenses I created OR Expenses recorded for my company
     const filters = [`created_by.eq.${currentUser.id}`];
     
     if (currentUser.company_id) {
         filters.push(`company_id.eq.${currentUser.company_id}`);
-    }
-    
-    if (currentUser.company?.name) {
-        filters.push(`description.ilike."%${currentUser.company.name}%"`); // fallback
-    }
-
-    if (orderIds.length > 0) {
-        filters.push(`order_id.in.(${orderIds.join(',')})`);
     }
 
     const { data, error } = await supabase

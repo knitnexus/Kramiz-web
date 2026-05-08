@@ -120,10 +120,17 @@ export const createSalesInvoice = async (
 // ── READ ─────────────────────────────────────────────────────────────────────
 
 export const getSalesInvoices = async (currentUser: User): Promise<Invoice[]> => {
+    // Build clean filters: Invoices I created OR Invoices my company sold
+    const filters = [`created_by.eq.${currentUser.id}`];
+    
+    if (currentUser.company_id) {
+        filters.push(`seller_company_id.eq.${currentUser.company_id}`);
+    }
+
     const { data, error } = await supabase
         .from('sales_invoices')
         .select(INVOICE_SELECT)
-        .eq('seller_company_id', currentUser.company_id)
+        .or(filters.join(','))
         .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);

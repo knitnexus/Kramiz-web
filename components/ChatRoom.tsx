@@ -16,6 +16,8 @@ import { SimpleExpenseForm } from '@/features/invoices/components/SimpleExpenseF
 import { ChallanDetailView } from '@/features/delivery-challan/components/ChallanDetailView';
 import { QuickTaskForm } from '@/features/tasks/components/QuickTaskForm';
 import { aiApi } from '../api/ai';
+import { ImageViewerModal } from './ImageViewerModal';
+import { AddContactAIModal } from './AddContactAIModal';
 
 interface ChatRoomProps {
     currentUser: User;
@@ -37,13 +39,16 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
     const [showGroupInfo, setShowGroupInfo] = useState(false);
     const [showAttachMenu, setShowAttachMenu] = useState(false);
     const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
-    const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
     const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
     const [openUpwards, setOpenUpwards] = useState(false);
     const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
     const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedTargetChannelIds, setSelectedTargetChannelIds] = useState<Set<string>>(new Set());
+
+    // New Modals State
+    const [viewingMessage, setViewingMessage] = useState<Message | null>(null);
+    const [messageForContactScan, setMessageForContactScan] = useState<Message | null>(null);
 
     // Voice Note States
     const [isRecording, setIsRecording] = useState(false);
@@ -347,10 +352,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
         } catch (err) { alert("Failed to load team members"); }
     };
 
-    const renderMessageContent = (content: string) => {
+    const renderMessageContent = (msg: Message) => {
+        const { content } = msg;
         if (content.startsWith('[IMAGE]')) {
             const url = content.split('|')[0].replace('[IMAGE]', '').trim();
-            return <img src={url} alt="Attachment" className="max-w-full rounded-lg max-h-60 object-cover border border-gray-200 cursor-pointer hover:opacity-95" onClick={() => setSelectedImageUrl(url)} />;
+            return <img src={url} alt="Attachment" className="max-w-full rounded-lg max-h-60 object-cover border border-gray-200 cursor-pointer hover:opacity-95" onClick={() => setViewingMessage(msg)} />;
         }
         if (content.startsWith('[FILE]')) {
             const parts = content.split('|');
@@ -579,6 +585,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                                                 </svg>
                                                 Share
                                             </button>
+                                            <button 
+                                                onClick={() => { setOpenDropdownId(null); setMessageForContactScan(msg); }} 
+                                                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 border-t border-gray-50 mt-1 transition-colors"
+                                            >
+                                                <span className="text-base">👤</span> Add to Contacts
+                                            </button>
                                             {isMe && (
                                                 <button 
                                                     onClick={() => { setOpenDropdownId(null); setDeletingMessageId(msg.id); }} 
@@ -590,7 +602,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                                         </div>
                                     )}
 
-                                    <div className="pr-10 pb-1">{isDeleted ? <span className="text-gray-400 italic">Deleted</span> : renderMessageContent(msg.content)}</div>
+                                    <div className="pr-10 pb-1">{isDeleted ? <span className="text-gray-400 italic">Deleted</span> : renderMessageContent(msg)}</div>
                                     <div className="text-[9px] text-gray-400 absolute bottom-1 right-2">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                 </div>
                             </div>
@@ -1005,6 +1017,25 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                         <p className="text-sm font-bold text-gray-700">Fetching Document...</p>
                     </div>
                 </div>
+            )}
+
+            {/* NEW PREMIUM MODALS */}
+            {viewingMessage && (
+                <ImageViewerModal 
+                    url={viewingMessage.content.split('|')[0].replace('[IMAGE]', '').trim()} 
+                    senderName={viewingMessage.user?.name}
+                    timestamp={viewingMessage.timestamp}
+                    onClose={() => setViewingMessage(null)} 
+                />
+            )}
+
+            {messageForContactScan && (
+                <AddContactAIModal 
+                    currentUser={currentUser}
+                    message={messageForContactScan}
+                    onClose={() => setMessageForContactScan(null)}
+                    onSuccess={() => alert('Contact added successfully!')}
+                />
             )}
         </div>
     );

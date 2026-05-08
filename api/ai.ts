@@ -12,48 +12,52 @@ export interface ScanResult {
 
 export const aiApi = {
     /**
-     * Processes an image (DC, IC, Invoice, or Visiting Card) using Gemini 2.5 Flash
+     * Processes content (Image, PDF, or Text) using Gemini 1.5 Flash
      */
     scanDocument: async (
         currentUser: User, 
-        imageFile: File, 
+        content: File | string, 
         type: AIScanType,
         context?: { orderId?: string; styleNo?: string; companyName?: string }
     ): Promise<ScanResult> => {
         try {
-            // 1. Upload the file to a temporary AI bucket or just send as base64
-            // Sending as base64 is often easier for edge functions
-            const base64 = await fileToBase64(imageFile);
-
-            // 2. Call the Supabase Edge Function
-            const { data, error } = await supabase.functions.invoke('process-ai', {
-                body: {
-                    action: 'SCAN_DOCUMENT',
-                    type,
-                    image: base64,
-                    context: {
-                        ...context,
-                        userName: currentUser.name,
-                        companyId: currentUser.company_id
-                    }
+            let body: any = {
+                action: 'SCAN_DOCUMENT',
+                type,
+                context: {
+                    ...context,
+                    userName: currentUser.name,
+                    companyId: currentUser.company_id
                 }
-            });
+            };
+
+            if (typeof content === 'string') {
+                body.text = content;
+            } else {
+                body.image = await fileToBase64(content);
+            }
+
+            const { data, error } = await supabase.functions.invoke('process-ai', { body });
 
             if (error) throw error;
-            
             if (data && data.success === false) {
                 return { success: false, error: data.message || data.error || 'AI processing failed' };
             }
-
-            // Standardize: backend returns { success: true, data: ... }
             return { success: true, data: data.data };
-
         } catch (err: any) {
             console.error('AI Scan Error Detail:', err);
-            // If it's a Supabase error, it might have a context or message
             const errorMsg = err.context?.message || err.message || 'Failed to scan document';
             return { success: false, error: errorMsg };
         }
+    },
+
+    /**
+     * Helper to download an image from URL and convert to File for scanning
+     */
+    urlToFile: async (url: string, fileName: string = 'image.jpg'): Promise<File> => {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        return new File([blob], fileName, { type: blob.type });
     },
 
     /**
