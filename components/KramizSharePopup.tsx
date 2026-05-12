@@ -107,7 +107,12 @@ export const KramizSharePopup: React.FC<KramizSharePopupProps> = ({
                     // 4. Upload to Supabase Storage
                     shareUrl = await api.uploadFile(fileToUpload as File);
                 } catch (uploadErr: any) {
-                    throw new Error(`Failed to process shared file: ${uploadErr.message}`);
+                    console.error('File processing failed:', uploadErr);
+                    // If fetch failed, it might be due to content:// URI issues or stale blobs
+                    const msg = uploadErr.message?.includes('fetch') 
+                        ? "Could not read the shared file. Please try saving it first and then uploading from the gallery."
+                        : uploadErr.message;
+                    throw new Error(msg);
                 }
             }
 

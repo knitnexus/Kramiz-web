@@ -34,15 +34,28 @@ export const AllSalesInvoicesScreen: React.FC<AllSalesInvoicesScreenProps> = ({ 
         queryFn: () => api.getSalesInvoices(currentUser),
     });
 
+    const { data: orders = [] } = useQuery({
+        queryKey: ['orders', currentUser.id],
+        queryFn: () => api.getOrders(currentUser),
+    });
+
     const { data: company } = useCompanyQuery<Company>({
         queryKey: ['company', currentUser.company_id],
         queryFn: () => api.getCompany(currentUser.company_id),
     });
 
+    const getOrderName = (inv: Invoice) => {
+        if ((inv as any).parent_order?.order_number) return (inv as any).parent_order.order_number;
+        if (!inv.order_id) return null;
+        const found = orders.find(o => o.id === inv.order_id);
+        if (found) return found.order_number;
+        return inv.order_id.length > 20 ? inv.order_id.substring(0, 8).toUpperCase() : inv.order_id;
+    };
+
     const handleDownload = async (inv: Invoice) => {
         if (!company) return;
         try {
-            const pdfBase64 = await generateDocumentPDF('SALES_INVOICE', inv, company, true);
+            const pdfBase64 = await generateDocumentPDF('SALES_INVOICE', inv, company, true, getOrderName(inv) || undefined);
             setSharingDoc({ data: inv, pdf: pdfBase64 });
         } catch (err: any) { alert(err.message); }
     };

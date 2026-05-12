@@ -18,6 +18,7 @@ import { QuickTaskForm } from '@/features/tasks/components/QuickTaskForm';
 import { aiApi } from '../api/ai';
 import { ImageViewerModal } from './ImageViewerModal';
 import { AddContactAIModal } from './AddContactAIModal';
+import { CameraModal } from './CameraModal';
 
 interface ChatRoomProps {
     currentUser: User;
@@ -70,6 +71,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const photoInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
 
     // Document Modal states
     const [showDCForm, setShowDCForm] = useState(false);
@@ -78,6 +80,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
     const [showPurchaseInvForm, setShowPurchaseInvForm] = useState(false);
     const [showExpenseForm, setShowExpenseForm] = useState(false);
     const [showTaskForm, setShowTaskForm] = useState(false);
+    const [showCameraModal, setShowCameraModal] = useState(false);
 
     // Document Viewing state
     const [viewingDoc, setViewingDoc] = useState<{ type: 'DC' | 'IC' | 'SI' | 'PI' | 'EX', id: string, num: string } | null>(null);
@@ -334,12 +337,54 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
             try {
                 (window as any).isKramizUploading = true;
                 for (const file of Array.from(e.target.files)) {
-                    const compressed = await compressImage(file);
-                    const url = await api.uploadFile(compressed as File);
-                    const tag = file.type.startsWith('image/') ? '[IMAGE]' : '[FILE]';
-                    sendMessage(`${tag} ${url} | ${file.name}`);
+                    try {
+                        const compressed = await compressImage(file);
+                        const url = await api.uploadFile(compressed as File);
+                        const tag = file.type.startsWith('image/') ? '[IMAGE]' : '[FILE]';
+                        sendMessage(`${tag} ${url} | ${file.name}`);
+                    } catch (err: any) {
+                        console.error('File process error:', err);
+                        // Fallback to original file if compression fails (e.g. HEIC on Android)
+                        const url = await api.uploadFile(file);
+                        const tag = file.type.startsWith('image/') ? '[IMAGE]' : '[FILE]';
+                        sendMessage(`${tag} ${url} | ${file.name}`);
+                    }
                 }
-            } finally { setIsUploading(false); (window as any).isKramizUploading = false; if (fileInputRef.current) fileInputRef.current.value = ''; }
+            } catch (globalErr: any) {
+                alert("Upload failed: " + globalErr.message);
+            } finally { 
+                setIsUploading(false); 
+                (window as any).isKramizUploading = false; 
+                if (fileInputRef.current) fileInputRef.current.value = ''; 
+                if (photoInputRef.current) photoInputRef.current.value = '';
+                if (cameraInputRef.current) cameraInputRef.current.value = '';
+            }
+        }
+    };
+
+    const handleCameraCapture = async () => {
+        setShowAttachMenu(false);
+        if (isNative) {
+            try {
+                const { takePhoto } = await import('../capacitorUtils');
+                const uri = await takePhoto('camera');
+                if (uri) {
+                    setIsUploading(true);
+                    const response = await fetch(uri);
+                    const blob = await response.blob();
+                    const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                    const url = await api.uploadFile(file);
+                    sendMessage(`[IMAGE] ${url} | Camera Photo`);
+                }
+            } catch (err: any) {
+                alert("Camera error: " + err.message);
+            } finally {
+                setIsUploading(false);
+            }
+        } else {
+            // Check if we are on a desktop or if capture attribute is not respected
+            // For a better experience on desktop with webcams, we use our custom CameraModal
+            setShowCameraModal(true);
         }
     };
 
@@ -615,6 +660,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
 
                     <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" multiple />
                     <input type="file" ref={photoInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" multiple />
+                    <input type="file" ref={cameraInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" capture="environment" />
                     <button type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="flex-shrink-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-[#008069] hover:bg-white rounded-full transition-all">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     </button>
@@ -655,8 +701,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
 
                     {showAttachMenu && (
                         <div className="absolute bottom-16 left-4 bg-white shadow-2xl rounded-2xl p-2 z-50 border border-gray-100 animate-in slide-in-from-bottom-2 duration-200 w-64">
+                            <button onClick={handleCameraCapture} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors border-b border-gray-50">
+                                <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Camera</span><span className="text-[10px] text-gray-400">Take a photo</span></div>
+                            </button>
+
                             <button onClick={() => { photoInputRef.current?.click(); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors border-b border-gray-50">
-                                <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Photos</span><span className="text-[10px] text-gray-400">Camera & Gallery</span></div>
+                                <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Gallery</span><span className="text-[10px] text-gray-400">Choose from photos</span></div>
                             </button>
 
                             <button onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors border-b border-gray-50">
@@ -737,6 +787,22 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                         )}
                     </button>
                 </div>
+
+                <CameraModal 
+                    isOpen={showCameraModal}
+                    onClose={() => setShowCameraModal(false)}
+                    onCapture={async (file) => {
+                        setIsUploading(true);
+                        try {
+                            const url = await api.uploadFile(file);
+                            sendMessage(`[IMAGE] ${url} | Camera Photo`);
+                        } catch (err) {
+                            alert("Failed to upload camera photo");
+                        } finally {
+                            setIsUploading(false);
+                        }
+                    }}
+                />
             </div>
 
             {showGroupInfo && (
@@ -1006,6 +1072,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                 <ChallanDetailView 
                     data={docData} 
                     type={viewingDoc.type} 
+                    orderName={order.order_number}
                     onClose={() => { setViewingDoc(null); setDocData(null); }} 
                 />
             )}

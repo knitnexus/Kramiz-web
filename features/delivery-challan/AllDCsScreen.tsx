@@ -66,7 +66,7 @@ export const AllDCsScreen: React.FC<AllDCsScreenProps> = ({ currentUser }) => {
     const handleDownload = async (dc: DeliveryChallan) => {
         if (!company) return;
         try {
-            const pdfBase64 = await generateDocumentPDF('DC', dc, company, true); 
+            const pdfBase64 = await generateDocumentPDF('DC', dc, company, true, getOrderName(dc) || undefined); 
             setSharingDoc({ data: dc, pdf: pdfBase64 });
         } catch (err: any) { alert(err.message); }
     };
