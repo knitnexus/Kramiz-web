@@ -63,13 +63,14 @@ export const useContacts = (currentUser: User) => {
     const isPINValid = form.pincode    === '' || /^\d{6}$/.test(form.pincode);
 
     const handleGSTInput = (value: string) => {
-        const cleaned = value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-        if (cleaned.length <= 15) setForm(f => ({ ...f, gst_number: cleaned }));
+        // Remove spaces/dashes and trim to 15
+        const cleaned = value.replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 15);
+        setForm(f => ({ ...f, gst_number: cleaned }));
     };
 
     const handlePINInput = (value: string) => {
-        const cleaned = value.replace(/\D/g, '');
-        if (cleaned.length <= 6) setForm(f => ({ ...f, pincode: cleaned }));
+        const cleaned = value.replace(/\D/g, '').slice(0, 6);
+        setForm(f => ({ ...f, pincode: cleaned }));
     };
 
     const openAdd = () => {

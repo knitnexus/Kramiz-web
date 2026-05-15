@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { User, Channel, Order } from '../types';
 import { api } from '../supabaseAPI';
 import { Modal } from './Modal';
+import { readUriAsBlob } from '../capacitorUtils';
 
 interface KramizSharePopupProps {
     currentUser: User;
@@ -84,9 +85,8 @@ export const KramizSharePopup: React.FC<KramizSharePopupProps> = ({
             // because the local URI (content:// or file://) is not accessible by other devices.
             if (content.type === 'file' && content.fileUrl) {
                 try {
-                    // 1. Fetch the file data from the local URI
-                    const response = await fetch(content.fileUrl);
-                    const blob = await response.blob();
+                    // 1. Fetch the file data from the local URI using robust helper
+                    const blob = await readUriAsBlob(content.fileUrl);
                     
                     const fileName = content.fileName || 'shared_file';
                     // 2. Identify if it's an image for special treatment (previews)
@@ -108,10 +108,8 @@ export const KramizSharePopup: React.FC<KramizSharePopupProps> = ({
                     shareUrl = await api.uploadFile(fileToUpload as File);
                 } catch (uploadErr: any) {
                     console.error('File processing failed:', uploadErr);
-                    // If fetch failed, it might be due to content:// URI issues or stale blobs
-                    const msg = uploadErr.message?.includes('fetch') 
-                        ? "Could not read the shared file. Please try saving it first and then uploading from the gallery."
-                        : uploadErr.message;
+                    // More descriptive error for the user
+                    const msg = "Failed to process shared file. If this persists, try saving the file to your device first and then uploading it from the gallery inside Kramiz.";
                     throw new Error(msg);
                 }
             }
@@ -190,7 +188,7 @@ export const KramizSharePopup: React.FC<KramizSharePopupProps> = ({
                         groupedChannels.map(({ order, channels }) => (
                             <div key={order?.id || 'general'} className="space-y-2">
                                 <div className="flex items-center gap-2 px-2">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                    <span className="text-[10px] font-bold text-grey-700 uppercase tracking-widest">
                                         {order ? `Order ${order.order_number}` : 'General'}
                                     </span>
                                     {order?.style_number && (
@@ -207,9 +205,6 @@ export const KramizSharePopup: React.FC<KramizSharePopupProps> = ({
                                             className={`w-full text-left p-3.5 border rounded-2xl transition-all flex items-center justify-between group shadow-sm ${selectedIds.has(ch.id) ? 'bg-green-50 border-green-200 ring-1 ring-green-100' : 'bg-white border-gray-100 hover:bg-gray-50'}`}
                                         >
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs transition-colors ${selectedIds.has(ch.id) ? 'bg-[#008069] text-white' : 'bg-gray-100 text-gray-400'}`}>
-                                                    {ch.name[0]}
-                                                </div>
                                                 <span className={`font-bold text-sm ${selectedIds.has(ch.id) ? 'text-[#008069]' : 'text-gray-700'}`}>
                                                     {ch.name}
                                                 </span>

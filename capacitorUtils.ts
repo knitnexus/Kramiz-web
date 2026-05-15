@@ -193,10 +193,60 @@ export const takePhoto = async (source: 'camera' | 'gallery' = 'camera'): Promis
             correctOrientation: true,
         });
 
+        // Use webPath for direct display/fetch where possible
+        // But keep path for Filesystem access if webPath fails
         return image.webPath || image.path || null;
     } catch (error) {
         console.error('[Capacitor] Camera error:', error);
         return null;
+    }
+};
+
+/**
+ * Robustly reads a URI (content://, file://, or webPath) and returns a Blob.
+ * Necessary because standard fetch() often fails on native URIs.
+ */
+export const readUriAsBlob = async (uri: string): Promise<Blob> => {
+    if (!isNative) {
+        const res = await fetch(uri);
+        return await res.blob();
+    }
+
+    try {
+        // First try standard fetch (works for webPath)
+        const res = await fetch(uri);
+        return await res.blob();
+    } catch (fetchErr) {
+        console.log('[Capacitor] Fetch failed, falling back to Filesystem:', uri);
+        try {
+            // Fallback to Filesystem for content:// or file:// URIs
+            const file = await Filesystem.readFile({
+                path: uri
+            });
+            
+            // Filesystem.readFile returns base64 string
+            const base64Data = file.data as string;
+            
+            // Convert base64 to Blob
+            // We try to guess the mime type from the extension or use a generic one
+            const extension = uri.split('.').pop()?.toLowerCase();
+            let mimeType = 'application/octet-stream';
+            if (['jpg', 'jpeg'].includes(extension!)) mimeType = 'image/jpeg';
+            else if (extension === 'png') mimeType = 'image/png';
+            else if (extension === 'pdf') mimeType = 'application/pdf';
+            else if (extension === 'webp') mimeType = 'image/webp';
+
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: mimeType });
+        } catch (fsErr) {
+            console.error('[Capacitor] Filesystem read failed:', fsErr);
+            throw new Error('Failed to read file from device storage');
+        }
     }
 };
 

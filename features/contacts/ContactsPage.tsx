@@ -59,15 +59,32 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ currentUser }) => {
                         </p>
                     </div>
                     {canManage && (
-                        <button
-                            onClick={openAdd}
-                            className="flex items-center justify-center gap-2 px-4 py-2 bg-[#008069] text-white rounded-xl text-sm font-black shadow-md hover:bg-[#006a57] transition-all w-full sm:w-auto"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                            </svg>
-                            Add Contact
-                        </button>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            <button
+                                onClick={() => {
+                                    setForm({ name: '', phone: '', gst_number: '', address: '', state: '', pincode: '', notes: '' });
+                                    openAdd();
+                                    // Trigger AI scan immediately in the modal
+                                    setTimeout(() => {
+                                        const btn = document.querySelector('[data-ai-scan-btn]') as HTMLButtonElement;
+                                        btn?.click();
+                                    }, 100);
+                                }}
+                                className="flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-[#008069] text-[#008069] rounded-xl text-sm font-black shadow-sm hover:bg-green-50 transition-all flex-1 sm:flex-none"
+                            >
+                                <span className="text-lg">✨</span>
+                                AI Scan
+                            </button>
+                            <button
+                                onClick={openAdd}
+                                className="flex items-center justify-center gap-2 px-4 py-2 bg-[#008069] text-white rounded-xl text-sm font-black shadow-md hover:bg-[#006a57] transition-all flex-1 sm:flex-none"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add Contact
+                            </button>
+                        </div>
                     )}
                 </div>
 

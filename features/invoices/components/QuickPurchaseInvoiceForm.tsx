@@ -9,8 +9,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { User, Company, Contact, GSTType, GSTRate, Order, Invoice } from '../../../types';
 import { api } from '../../../supabaseAPI';
 import { aiApi } from '../../../api/ai';
+import { isNative, takePhoto, readUriAsBlob } from '../../../capacitorUtils';
 import { useContacts } from '../../contacts/useContacts';
 import { AddContactModal } from '../../contacts/components/AddContactModal';
+import { QuickTaskForm } from '../../tasks/components/QuickTaskForm';
+import { CameraModal } from '../../../components/CameraModal';
 
 interface QuickPurchaseInvoiceFormProps {
     currentUser: User;
@@ -50,6 +53,7 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
     const [saving, setSaving]             = useState(false);
     const aiScanInputRef = React.useRef<HTMLInputElement>(null);
     const [isScanning, setIsScanning] = useState(false);
+    const [showCamera, setShowCamera] = useState(false);
 
     const { data: partners = [] } = useQuery<Company[]>({
         queryKey: ['partners', currentUser.company_id],
@@ -112,10 +116,7 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
     };
 
     // ── AI Scanning ────────────────────────────────────────────────────────────
-    const handleAIScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
+    const handleAIScan = async (file: File) => {
         setIsScanning(true);
         try {
             const res = await aiApi.scanDocument(currentUser, file, 'INVOICE', {
@@ -228,20 +229,55 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                                 </h4>
                                 <p className="text-orange-50 text-[11px] font-medium leading-tight mt-1">Upload a photo of the vendor bill and I'll extract the items and totals.</p>
                             </div>
-                            <button 
-                                onClick={() => aiScanInputRef.current?.click()}
-                                disabled={isScanning}
-                                className="bg-white text-orange-600 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-orange-50 active:scale-95 transition-all shadow-sm disabled:opacity-50"
-                            >
-                                {isScanning ? 'Scanning...' : 'Scan Now'}
-                            </button>
+                            <div className="flex flex-col gap-2">
+                                <button 
+                                    onClick={async () => {
+                                        if (isNative) {
+                                            const path = await takePhoto('camera');
+                                            if (path) {
+                                                const blob = await readUriAsBlob(path);
+                                                const file = new File([blob], 'camera_bill.jpg', { type: 'image/jpeg' });
+                                                handleAIScan(file);
+                                            }
+                                        } else {
+                                            setShowCamera(true);
+                                        }
+                                    }}
+                                    data-ai-scan-btn
+                                    className="bg-white text-orange-600 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-orange-50 active:scale-95 transition-all shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                    {isScanning ? 'Scanning...' : 'Scan'}
+                                </button>
+                                <button 
+                                    onClick={async () => {
+                                        if (isNative) {
+                                            const path = await takePhoto('gallery');
+                                            if (path) {
+                                                const blob = await readUriAsBlob(path);
+                                                const file = new File([blob], 'gallery_bill.jpg', { type: 'image/jpeg' });
+                                                handleAIScan(file);
+                                            }
+                                        } else {
+                                            aiScanInputRef.current?.click();
+                                        }
+                                    }}
+                                    disabled={isScanning}
+                                    className="bg-orange-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-orange-800 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                    Gallery
+                                </button>
+                            </div>
                             <input 
                                 ref={aiScanInputRef}
                                 type="file"
                                 accept="image/*"
-                                capture="environment"
                                 className="hidden"
-                                onChange={handleAIScan}
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleAIScan(file);
+                                }}
                             />
                         </div>
                     )}
@@ -387,6 +423,12 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                     currentUser={currentUser}
                 />
             )}
+
+            <CameraModal
+                isOpen={showCamera}
+                onClose={() => setShowCamera(false)}
+                onCapture={handleAIScan}
+            />
         </div>
     );
 };

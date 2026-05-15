@@ -39,7 +39,7 @@ export const generateDocumentPDF = async (
     const toPartner = resolveTo(data);
 
     const allItems = (data.items || data.items_received || []);
-    const itemsPerPage = isA5 ? 10 : 22; // A5 landscape fits ~10, A4 portrait fits ~22
+    const itemsPerPage = isA5 ? 8 : 20; // A5 landscape fits ~8 comfortably, A4 portrait fits ~20
     const totalPages = Math.ceil(allItems.length / itemsPerPage) || 1;
 
     const pdf = new jsPDF({
@@ -174,7 +174,7 @@ export const generateDocumentPDF = async (
                     <div style="margin-top: auto; padding-top: 15px; display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; width: 100%;">
                         
                         <!-- Receiver -->
-                        <div style="display: flex; gap: 12px; align-items: center; width: 220px; flex-shrink: 0;">
+                        <div style="display: flex; gap: 12px; align-items: center; min-width: 260px; flex-shrink: 0;">
                             ${data.driver_photo_url ? `
                                 <img src="${data.driver_photo_url}" style="width: 50px; height: 65px; object-fit: cover; border: 1.2px solid ${BLUE_LIGHT}; border-radius: 4px;" />
                             ` : `
@@ -182,9 +182,9 @@ export const generateDocumentPDF = async (
                                     <span>Photo</span>
                                 </div>
                             `}
-                            <div style="overflow: hidden;">
+                            <div style="flex: 1; min-width: 0;">
                                 <p style="font-size: 8px; font-weight: 800; color: ${BLUE_LIGHT}; text-transform: uppercase; margin-bottom: 2px;">Receiver Details</p>
-                                <p style="font-size: 11px; font-weight: 800; margin: 0; color: #111827; line-height: 1.1;">${data.driver_name || 'N/A'}</p>
+                                <p style="font-size: 11px; font-weight: 800; margin: 0; color: #111827; line-height: 1.5; word-break: break-word; padding-bottom: 4px;">${data.driver_name || 'N/A'}</p>
                                 <p style="font-size: 9px; color: #6b7280; margin: 1px 0 0;">${data.driver_phone || 'Contact N/A'}</p>
                                 <div style="margin-top: 8px; border-bottom: 1.2px solid #f3f4f6; width: 120px; height: 16px; position: relative;">
                                     <span style="position: absolute; bottom: -12px; left: 0; font-size: 8px; font-weight: 700; color: #9ca3af; text-transform: uppercase;">Sign Here</span>

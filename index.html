@@ -61,6 +61,13 @@
             -moz-osx-font-smoothing: grayscale;
         }
 
+        /* Ensure inputs allow selection/paste menu on mobile */
+        input, textarea {
+            -webkit-user-select: text !important;
+            user-select: text !important;
+            -webkit-touch-callout: default !important;
+        }
+
         /* Responsive Modal Fixes */
         .modal-container {
             max-height: calc(100vh - 40px);

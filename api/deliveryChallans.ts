@@ -39,7 +39,8 @@ const DC_SELECT = `
     *,
     sender_company:companies!sender_company_id(id, name, gst_number, address, state, pincode, kramiz_id),
     receiver_company:companies!receiver_company_id(id, name, gst_number, address, state, pincode, kramiz_id),
-    receiver_contact:contacts!receiver_contact_id(id, name, gst_number, address, state, pincode, phone)
+    receiver_contact:contacts!receiver_contact_id(id, name, gst_number, address, state, pincode, phone),
+    parent_order:orders(id, order_number, style_number)
 `;
 
 export const createDeliveryChallan = async (

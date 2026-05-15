@@ -6,7 +6,7 @@ import { Modal } from './Modal';
 import { compressImage } from '../imageUtils';
 import { useChat } from '../hooks/useChat';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { isNative, shareFile, shareContent } from '../capacitorUtils';
+import { isNative, shareFile, shareContent, readUriAsBlob } from '../capacitorUtils';
 import { KramizSharePopup } from './KramizSharePopup';
 import { DCForm } from '@/features/delivery-challan/components/DCForm';
 import { InwardChallanForm } from '@/features/inward-challan/components/InwardChallanForm';
@@ -370,8 +370,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                 const uri = await takePhoto('camera');
                 if (uri) {
                     setIsUploading(true);
-                    const response = await fetch(uri);
-                    const blob = await response.blob();
+                    const blob = await readUriAsBlob(uri);
                     const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
                     const url = await api.uploadFile(file);
                     sendMessage(`[IMAGE] ${url} | Camera Photo`);
@@ -660,9 +659,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
 
                     <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" multiple />
                     <input type="file" ref={photoInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" multiple />
-                    <input type="file" ref={cameraInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" capture="environment" />
+                    <input type="file" ref={cameraInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" />
                     <button type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="flex-shrink-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-[#008069] hover:bg-white rounded-full transition-all">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    </button>
+                    <button type="button" onClick={handleCameraCapture} className="flex-shrink-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-[#008069] hover:bg-white rounded-full transition-all">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </button>
 
 
@@ -761,7 +763,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                                 }
                             }}
                             placeholder="Type a message..."
-                            className="flex-1 py-1.5 bg-transparent border-none focus:ring-0 focus:outline-none text-[15px] resize-none minimal-scrollbar overflow-hidden"
+                            className="flex-1 py-1.5 bg-transparent border-none focus:ring-0 focus:outline-none text-[15px] resize-none minimal-scrollbar overflow-y-auto"
 
                             style={{ minHeight: '24px', maxHeight: '150px', lineHeight: '24px' }}
                             rows={1}
