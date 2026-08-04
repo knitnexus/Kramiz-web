@@ -73,7 +73,7 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
     // --- Derived Data ---
     const partnerIds = new Set(partners.map(p => p.id));
 
-    const allPossibleSellers = [
+    const fullSellersList = [
         ...partners.map(p => ({ 
             id: p.id, 
             companyId: p.id, 
@@ -88,7 +88,9 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
             name: c.name, 
             tag: c.linked_company_id ? 'Partner' : 'Manual Contact'
         }))
-    ].filter(s => s.name.toLowerCase().includes(sellerSearch.toLowerCase()));
+    ];
+
+    const allPossibleSellers = fullSellersList.filter(s => s.name.toLowerCase().includes(sellerSearch.toLowerCase()));
 
     const subtotal = useMemo(() => {
         return items.reduce((sum, it) => {
@@ -125,7 +127,7 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
             });
 
             if (res.success && res.data) {
-                const { date, party_name, items: extractedItems, invoice_number } = res.data;
+                const { date, party_name, seller_name, items: extractedItems, invoice_number } = res.data;
                 
                 if (date) setDocDate(date);
                 if (extractedItems?.length) {
@@ -139,11 +141,12 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                 }
                 if (invoice_number) setInvNo(invoice_number);
                 
-                // Try to match seller
-                if (party_name) {
-                    const match = allPossibleSellers.find(s => 
-                        s.name.toLowerCase().includes(party_name.toLowerCase()) ||
-                        party_name.toLowerCase().includes(s.name.toLowerCase())
+                // Try to match seller against the full unfiltered list
+                const targetSeller = seller_name || party_name;
+                if (targetSeller) {
+                    const match = fullSellersList.find(s => 
+                        s.name.toLowerCase().includes(targetSeller.toLowerCase()) ||
+                        targetSeller.toLowerCase().includes(s.name.toLowerCase())
                     );
                     if (match) setSelectedSeller(match);
                 }

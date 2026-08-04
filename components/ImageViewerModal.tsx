@@ -16,6 +16,14 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
     const [lastPosition, setLastPosition] = useState({ x: 0, y: 0 });
     const imgRef = useRef<HTMLImageElement>(null);
 
+    // Touch state refs for pinch-to-zoom
+    const touchStartRef = useRef({ x: 0, y: 0 });
+    const initialDistanceRef = useRef<number | null>(null);
+    const initialZoomRef = useRef(1);
+    const isPanningRef = useRef(false);
+    const isPinchingRef = useRef(false);
+    const lastTouchCenterRef = useRef({ x: 0, y: 0 });
+
     // Close on Escape key
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
@@ -33,7 +41,7 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
         if (newZoom === 1) setPosition({ x: 0, y: 0 });
     };
 
-    // Panning Logic
+    // Mouse Panning Logic
     const handleMouseDown = (e: React.MouseEvent) => {
         if (zoom > 1) {
             setIsDragging(true);
@@ -51,6 +59,96 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
     };
 
     const handleMouseUp = () => setIsDragging(false);
+
+    // Touch Panning & Pinch Logic
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (e.touches.length === 1) {
+            if (zoom > 1) {
+                isPanningRef.current = true;
+                isPinchingRef.current = false;
+                const touch = e.touches[0];
+                touchStartRef.current = {
+                    x: touch.clientX - position.x,
+                    y: touch.clientY - position.y
+                };
+            }
+        } else if (e.touches.length === 2) {
+            isPanningRef.current = false;
+            isPinchingRef.current = true;
+            
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            
+            const dx = touch1.clientX - touch2.clientX;
+            const dy = touch1.clientY - touch2.clientY;
+            initialDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
+            initialZoomRef.current = zoom;
+            
+            lastTouchCenterRef.current = {
+                x: (touch1.clientX + touch2.clientX) / 2,
+                y: (touch1.clientY + touch2.clientY) / 2
+            };
+        }
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (isPanningRef.current && e.touches.length === 1 && zoom > 1) {
+            const touch = e.touches[0];
+            setPosition({
+                x: touch.clientX - touchStartRef.current.x,
+                y: touch.clientY - touchStartRef.current.y
+            });
+        } else if (isPinchingRef.current && e.touches.length === 2 && initialDistanceRef.current !== null) {
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            
+            const dx = touch1.clientX - touch2.clientX;
+            const dy = touch1.clientY - touch2.clientY;
+            const currentDistance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (currentDistance > 5) {
+                const scale = currentDistance / initialDistanceRef.current;
+                const newZoom = Math.min(Math.max(initialZoomRef.current * scale, 1), 10);
+                
+                const currentCenter = {
+                    x: (touch1.clientX + touch2.clientX) / 2,
+                    y: (touch1.clientY + touch2.clientY) / 2
+                };
+                
+                if (newZoom > 1) {
+                    const zoomRatio = newZoom / zoom;
+                    setPosition(prev => ({
+                        x: currentCenter.x - (currentCenter.x - prev.x) * zoomRatio,
+                        y: currentCenter.y - (currentCenter.y - prev.y) * zoomRatio
+                    }));
+                } else {
+                    setPosition({ x: 0, y: 0 });
+                }
+                
+                setZoom(newZoom);
+                initialDistanceRef.current = currentDistance;
+                initialZoomRef.current = newZoom;
+            }
+        }
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        if (e.touches.length === 0) {
+            isPanningRef.current = false;
+            isPinchingRef.current = false;
+            initialDistanceRef.current = null;
+        } else if (e.touches.length === 1) {
+            isPinchingRef.current = false;
+            if (zoom > 1) {
+                isPanningRef.current = true;
+                const touch = e.touches[0];
+                touchStartRef.current = {
+                    x: touch.clientX - position.x,
+                    y: touch.clientY - position.y
+                };
+            }
+        }
+    };
 
     const handleDownload = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -134,6 +232,9 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
                 onDoubleClick={toggleZoom}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
             >
                 <img
                     ref={imgRef}
@@ -148,45 +249,24 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
                 />
             </div>
 
-            {/* Bottom Controls / Zoom Indicator */}
-            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 z-[1001]">
-                {zoom > 1 && (
-                    <div className="px-4 py-1.5 bg-white/10 backdrop-blur-md rounded-full text-white/80 text-[10px] font-black tracking-widest border border-white/5 uppercase">
+            {/* Bottom Controls / Zoom Indicator & Reset Shortcut */}
+            {zoom > 1 && (
+                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-[1001] animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    <div className="px-4 py-1.5 bg-black/40 backdrop-blur-md rounded-full text-white/80 text-[10px] font-black tracking-widest border border-white/10 uppercase shadow-lg">
                         {Math.round(zoom * 100)}% Zoom
                     </div>
-                )}
-                
-                <div className="flex items-center gap-1.5 p-1.5 bg-black/40 backdrop-blur-xl rounded-full border border-white/10 shadow-2xl">
                     <button 
-                        onClick={() => setZoom(prev => Math.max(prev - 0.5, 1))}
-                        className="w-10 h-10 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-all"
+                        onClick={() => { setZoom(1); setPosition({ x: 0, y: 0 }); }}
+                        className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white hover:text-white rounded-full text-[10px] font-black uppercase tracking-widest border border-white/5 shadow-2xl active:scale-95 transition-all"
                     >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 12H4" strokeWidth={2.5} strokeLinecap="round"/></svg>
-                    </button>
-                    
-                    <div className="w-[1px] h-4 bg-white/20 mx-1" />
-                    
-                    <button 
-                        onClick={() => { setZoom(1); setPosition({x:0, y:0}); }}
-                        className="px-3 text-[10px] font-black text-white/40 hover:text-white uppercase tracking-tighter"
-                    >
-                        Reset
-                    </button>
-
-                    <div className="w-[1px] h-4 bg-white/20 mx-1" />
-
-                    <button 
-                        onClick={() => setZoom(prev => Math.min(prev + 0.5, 10))}
-                        className="w-10 h-10 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-all"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth={2.5} strokeLinecap="round"/></svg>
+                        Reset Zoom
                     </button>
                 </div>
-            </div>
+            )}
 
             {/* Hint for mobile */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/20 text-[9px] font-bold uppercase tracking-[0.2em] pointer-events-none md:hidden">
-                Double tap to zoom
+                Pinch to Zoom • Drag to Pan
             </div>
         </div>
     );

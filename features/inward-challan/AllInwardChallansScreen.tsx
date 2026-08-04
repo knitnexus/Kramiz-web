@@ -5,7 +5,7 @@
  * Shows a list of all Inward Challans (goods received) for the current company.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { User, InwardChallan, hasPermission } from '../../types';
 import { api } from '../../supabaseAPI';
@@ -25,12 +25,24 @@ export const AllInwardChallansScreen: React.FC<AllInwardChallansScreenProps> = (
     const [creating, setCreating] = useState(false);
     const [editIc, setEditIc] = useState<InwardChallan | null>(null);
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
+    const [startDate, setStartDate] = useState<string>('');
+    const [endDate, setEndDate] = useState<string>('');
 
     const { data: ics = [], isLoading, error: queryError, refetch } = useQuery<InwardChallan[]>({
         queryKey: ['ics', currentUser.company_id],
         queryFn: () => api.getInwardChallansReceived(currentUser),
         retry: 1, // Don't retry infinitely
     });
+
+    const filteredIcs = useMemo(() => {
+        return ics.filter(ic => {
+            if (!ic.created_at) return true;
+            const icDateStr = ic.created_at.substring(0, 10);
+            if (startDate && icDateStr < startDate) return false;
+            if (endDate && icDateStr > endDate) return false;
+            return true;
+        });
+    }, [ics, startDate, endDate]);
 
     const { data: orders = [] } = useQuery({
         queryKey: ['orders', currentUser.id],
@@ -94,6 +106,41 @@ export const AllInwardChallansScreen: React.FC<AllInwardChallansScreenProps> = (
                 onBack={() => navigate('/dashboard')}
             />
 
+            {/* Date Filter Bar */}
+            <div className="bg-white border-b border-gray-100 px-4 py-2">
+                <div className="max-w-4xl mx-auto flex items-center gap-2">
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                        <div className="relative flex items-center bg-slate-50 border border-gray-100 rounded-xl px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-[#008069] transition-all">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase shrink-0 mr-1.5">From:</span>
+                            <input 
+                                type="date" 
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="w-full bg-transparent text-xs text-gray-700 focus:outline-none cursor-pointer"
+                            />
+                        </div>
+                        <div className="relative flex items-center bg-slate-50 border border-gray-100 rounded-xl px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-[#008069] transition-all">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase shrink-0 mr-1.5">To:</span>
+                            <input 
+                                type="date" 
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="w-full bg-transparent text-xs text-gray-700 focus:outline-none cursor-pointer"
+                            />
+                        </div>
+                    </div>
+                    {(startDate || endDate) && (
+                        <button 
+                            onClick={() => { setStartDate(''); setEndDate(''); }}
+                            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-gray-500 flex items-center justify-center shrink-0 active:scale-95 transition-all"
+                            title="Clear Filters"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    )}
+                </div>
+            </div>
+
             <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-20">
                 <div className="max-w-4xl mx-auto space-y-3 w-full">
                     {isLoading ? (
@@ -113,8 +160,18 @@ export const AllInwardChallansScreen: React.FC<AllInwardChallansScreenProps> = (
                         </div>
                     ) : ics.length === 0 ? (
                         <EmptyState icon="📥" title="No inward challans" subtitle="Record goods you've received" />
+                    ) : filteredIcs.length === 0 ? (
+                        <div className="bg-white rounded-2xl p-8 text-center border border-gray-100 shadow-sm">
+                            <p className="text-gray-500 text-sm font-bold">No inward challans match the selected date range.</p>
+                            <button 
+                                onClick={() => { setStartDate(''); setEndDate(''); }}
+                                className="mt-3 px-4 py-2 bg-[#008069] text-white text-xs font-bold rounded-xl"
+                            >
+                                Clear Date Filter
+                            </button>
+                        </div>
                     ) : (
-                        ics.map(ic => {
+                        filteredIcs.map(ic => {
                             const partner = resolveFrom(ic);
 
                             return (

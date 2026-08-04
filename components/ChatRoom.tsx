@@ -6,7 +6,7 @@ import { Modal } from './Modal';
 import { compressImage } from '../imageUtils';
 import { useChat } from '../hooks/useChat';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { isNative, shareFile, shareContent, readUriAsBlob } from '../capacitorUtils';
+import { isNative, shareFile, shareContent, readUriAsBlob, copyToClipboard, readFromClipboard } from '../capacitorUtils';
 import { KramizSharePopup } from './KramizSharePopup';
 import { DCForm } from '@/features/delivery-challan/components/DCForm';
 import { InwardChallanForm } from '@/features/inward-challan/components/InwardChallanForm';
@@ -87,9 +87,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
     const [docData, setDocData] = useState<any>(null);
     const [loadingDoc, setLoadingDoc] = useState(false);
 
-    // AI Summary state
-    const [aiSummary, setAiSummary] = useState<string | null>(null);
-    const [isSummarizing, setIsSummarizing] = useState(false);
+
 
     const handleViewDoc = async (type: 'DC' | 'IC' | 'SI' | 'PI' | 'EX', id: string, num: string) => {
         setViewingDoc({ type, id, num });
@@ -183,21 +181,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
         onError: (err: any) => alert('Forward failed: ' + err.message)
     });
 
-    const handleAISummary = async () => {
-        setIsSummarizing(true);
-        try {
-            const res = await aiApi.summarizeChat(currentUser, channel.id, messages);
-            if (res.success && res.summary) {
-                setAiSummary(res.summary);
-            } else {
-                alert(res.error || 'Failed to summarize chat');
-            }
-        } catch (err: any) {
-            alert('AI Summary Error: ' + err.message);
-        } finally {
-            setIsSummarizing(false);
-        }
-    };
+
 
     const handleDeleteChannel = async () => {
         if (!window.confirm("ARE YOU SURE? This will permanently delete the entire group, all messages, all specs, and all attached files. This cannot be undone.")) return;
@@ -264,7 +248,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
         } catch (e) { 
             console.error('Share error', e); 
             // Fallback to clipboard if sharing fails or is unsupported
-            navigator.clipboard.writeText(msg.content);
+            await copyToClipboard(msg.content);
             alert('Link copied to clipboard');
         }
     };
@@ -396,6 +380,48 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
         } catch (err) { alert("Failed to load team members"); }
     };
 
+    const renderMarkdown = (text: string) => {
+        if (!text) return null;
+
+        // Escape HTML to prevent XSS, but keep newlines
+        let escaped = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        // Code blocks: ```code```
+        escaped = escaped.replace(/```([\s\S]+?)```/g, '<pre class="bg-gray-100 p-2 rounded-lg font-mono text-xs my-1.5 overflow-x-auto whitespace-pre-wrap">$1</pre>');
+
+        // Inline code: `code`
+        escaped = escaped.replace(/`([^`]+?)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded font-mono text-xs text-red-600">$1</code>');
+
+        // Bold: **text**
+        escaped = escaped.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
+
+        // Italic: *text*
+        escaped = escaped.replace(/\*([\s\S]+?)\*/g, '<em>$1</em>');
+
+        // Underline: __text__
+        escaped = escaped.replace(/__([\s\S]+?)__/g, '<span class="underline">$1</span>');
+
+        // Strikethrough: ~~text~~
+        escaped = escaped.replace(/~~([\s\S]+?)~~/g, '<del>$1</del>');
+
+        // Hyperlinks: [text](url)
+        escaped = escaped.replace(/\[([^\]]+?)\]\((https?:\/\/[^\s)]+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-[#008069] hover:underline font-semibold">$1</a>');
+
+        // Auto-linkify raw URLs (not preceded by href=")
+        escaped = escaped.replace(/(?<!href=")(https?:\/\/[^\s]+)/gi, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-[#008069] hover:underline break-all">$1</a>');
+
+        // List item formatting: lines starting with * or - followed by space
+        escaped = escaped.replace(/^[-\*]\s+/gm, '• ');
+
+        // Convert newlines to br
+        escaped = escaped.replace(/\n/g, '<br />');
+
+        return <div className="text-gray-900 break-words text-[15px] leading-relaxed" dangerouslySetInnerHTML={{ __html: escaped }} />;
+    };
+
     const renderMessageContent = (msg: Message) => {
         const { content } = msg;
         if (content.startsWith('[IMAGE]')) {
@@ -449,7 +475,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
             );
         }
 
-        return <div className="text-gray-900 break-words">{content}</div>;
+        return renderMarkdown(content);
     };
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -598,8 +624,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                                     {openDropdownId === msg.id && !isDeleted && !selectionMode && (
                                         <div className={`absolute ${openUpwards ? 'bottom-8' : 'top-8'} right-0 bg-white shadow-2xl rounded-2xl py-1.5 w-52 z-20 border border-gray-100 animate-in fade-in zoom-in-95 duration-100`}>
                                             <button 
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(msg.content.replace(/\[IMAGE\]|\[FILE\]|\[AUDIO\]/, '').split('|')[0].trim());
+                                                onClick={async () => {
+                                                    await copyToClipboard(msg.content.replace(/\[IMAGE\]|\[FILE\]|\[AUDIO\]/, '').split('|')[0].trim());
                                                     setOpenDropdownId(null);
                                                 }} 
                                                 className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
@@ -669,38 +695,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
 
 
 
-                    <button 
-                        onClick={handleAISummary}
-                        disabled={isSummarizing}
-                        className="flex-shrink-0 flex items-center justify-center transition-all active:scale-95"
-                        title="AI Chat Summary"
-                    >
-                        {isSummarizing ? (
-                             <div className="w-9 h-9 flex items-center justify-center">
-                                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#008069] border-t-transparent"></div>
-                             </div>
-                        ) : (
-
-                            <>
-                                {/* Mobile: Outline Sparkle Icon */}
-                                <div className="md:hidden w-9 h-9 flex items-center justify-center text-gray-500 hover:text-[#008069] hover:bg-white rounded-full transition-all">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
-                                    </svg>
-                                </div>
-
-                                {/* PC: Sleek Pill Button */}
-                                <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-[#008069] hover:bg-[#006a57] text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm transition-all">
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                    </svg>
-                                    Summary
-                                </div>
-                            </>
-                        )}
-                    </button>
-
-
                     {showAttachMenu && (
                         <div className="absolute bottom-16 left-4 bg-white shadow-2xl rounded-2xl p-2 z-50 border border-gray-100 animate-in slide-in-from-bottom-2 duration-200 w-64">
                             <button onClick={handleCameraCapture} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors border-b border-gray-50">
@@ -756,18 +750,31 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                             ref={textareaRef}
                             value={newMessage}
                             onChange={e => setNewMessage(e.target.value)}
-                            onKeyDown={e => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleSend(e);
-                                }
-                            }}
                             placeholder="Type a message..."
                             className="flex-1 py-1.5 bg-transparent border-none focus:ring-0 focus:outline-none text-[15px] resize-none minimal-scrollbar overflow-y-auto"
 
                             style={{ minHeight: '24px', maxHeight: '150px', lineHeight: '24px' }}
                             rows={1}
                         />
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                const text = await readFromClipboard();
+                                if (text) {
+                                    setNewMessage(prev => {
+                                        const spacer = prev && !prev.endsWith(' ') ? ' ' : '';
+                                        return prev + spacer + text;
+                                    });
+                                    textareaRef.current?.focus();
+                                }
+                            }}
+                            className="p-1 text-gray-400 hover:text-[#008069] active:scale-95 transition-all self-end mb-1.5"
+                            title="Paste from clipboard"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                        </button>
                     </div>
 
                     {isRecording && (
@@ -1014,34 +1021,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                     onClose={() => setShowPurchaseInvForm(false)}
                 />
             )}
-            {/* AI Summary Modal */}
-            <Modal isOpen={aiSummary !== null} onClose={() => setAiSummary(null)} title="AI Status Summary">
-                <div className="bg-gradient-to-br from-green-50 to-white p-6 rounded-2xl border border-green-100 shadow-inner">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-xl">✨</div>
-                        <div>
-                            <h4 className="font-black text-gray-900 text-sm uppercase tracking-wider">Order Insight</h4>
-                            <p className="text-[10px] text-green-600 font-bold uppercase tracking-widest">Powered by Gemini 1.5 Flash</p>
-                        </div>
-                    </div>
-                    <div className="space-y-4">
-                        <div className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap font-medium">
-                            {aiSummary}
-                        </div>
-                        <div className="pt-4 border-t border-green-100">
-                            <p className="text-[10px] text-gray-400 italic">This summary is based on the last 50 messages in this group. Always verify critical details.</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="mt-6">
-                    <button 
-                        onClick={() => setAiSummary(null)}
-                        className="w-full py-3.5 bg-[#008069] text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-green-100 hover:bg-[#006a57] transition-all"
-                    >
-                        Got it, thanks!
-                    </button>
-                </div>
-            </Modal>
+
 
             {showExpenseForm && (
                 <SimpleExpenseForm

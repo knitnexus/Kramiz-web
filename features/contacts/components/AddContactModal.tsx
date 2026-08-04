@@ -19,7 +19,7 @@ import React, { useState, useRef } from 'react';
 import { ContactForm } from '../useContacts';
 import { aiApi } from '../../../api/ai';
 import { User } from '../../../types';
-import { isNative, takePhoto, readUriAsBlob } from '../../../capacitorUtils';
+import { isNative, takePhoto, readUriAsBlob, readFromClipboard } from '../../../capacitorUtils';
 
 import { CameraModal } from '../../../components/CameraModal';
 
@@ -188,14 +188,32 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                         label="GST Number"
                         hint="15 characters — uppercase letters and numbers only"
                     >
-                        <Input
-                            value={form.gst_number}
-                            onChange={e => handleGSTInput(e.target.value)}
-                            placeholder="e.g. 27AABCU9603R1ZX"
-                            maxLength={15}
-                            className="font-mono tracking-widest uppercase"
-                            hasError={!isGSTValid}
-                        />
+                        <div className="flex gap-2">
+                            <Input
+                                value={form.gst_number}
+                                onChange={e => handleGSTInput(e.target.value)}
+                                placeholder="e.g. 27AABCU9603R1ZX"
+                                maxLength={15}
+                                className="font-mono tracking-widest uppercase flex-1"
+                                hasError={!isGSTValid}
+                            />
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const text = await readFromClipboard();
+                                    if (text) {
+                                        handleGSTInput(text);
+                                    }
+                                }}
+                                className="px-3.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 hover:text-[#008069] active:scale-95 rounded-xl transition-all flex items-center justify-center gap-1.5 text-xs font-bold shadow-sm"
+                                title="Paste GST"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                                Paste
+                            </button>
+                        </div>
                         {form.gst_number && (
                             <div className="flex justify-between mt-1">
                                 {!isGSTValid && <p className="text-xs text-red-500">Must be exactly 15 characters</p>}
@@ -207,18 +225,46 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                     </Field>
 
                     <Field label="Phone Number" hint="Used for WhatsApp invite — include country code if outside India">
-                        <div className="flex">
-                            <span className="px-3 py-2 bg-gray-100 border border-r-0 border-gray-200 rounded-l-xl text-sm text-gray-500 font-bold">+91</span>
-                            <Input
-                                value={form.phone}
-                                onChange={e => {
-                                    const v = e.target.value.replace(/\D/g, '');
-                                    if (v.length <= 10) set({ phone: v });
+                        <div className="flex gap-2">
+                            <div className="flex flex-1">
+                                <span className="px-3 py-2 bg-gray-100 border border-r-0 border-gray-200 rounded-l-xl text-sm text-gray-500 font-bold flex items-center">+91</span>
+                                <Input
+                                    value={form.phone}
+                                    onChange={e => {
+                                        const v = e.target.value.replace(/\D/g, '');
+                                        if (v.length <= 10) set({ phone: v });
+                                    }}
+                                    placeholder="10-digit number"
+                                    maxLength={10}
+                                    className="rounded-l-none border-l-0 font-mono"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const text = await readFromClipboard();
+                                    if (text) {
+                                        // Clean text from non-digits
+                                        let cleaned = text.replace(/\D/g, '');
+                                        // If it starts with 91 and is 12 digits, strip the 91
+                                        if (cleaned.length === 12 && cleaned.startsWith('91')) {
+                                            cleaned = cleaned.slice(2);
+                                        }
+                                        // Slice to 10 max
+                                        const finalValue = cleaned.slice(-10);
+                                        if (finalValue.length <= 10) {
+                                            set({ phone: finalValue });
+                                        }
+                                    }
                                 }}
-                                placeholder="10-digit number"
-                                maxLength={10}
-                                className="rounded-l-none border-l-0 font-mono"
-                            />
+                                className="px-3.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 hover:text-[#008069] active:scale-95 rounded-xl transition-all flex items-center justify-center gap-1.5 text-xs font-bold shadow-sm"
+                                title="Paste Phone"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                                Paste
+                            </button>
                         </div>
                     </Field>
 

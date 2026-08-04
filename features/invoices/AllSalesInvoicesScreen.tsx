@@ -3,7 +3,7 @@
  * Feature: Sales Invoices
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { User, Invoice, hasPermission, Company } from '../../types';
 import { api } from '../../supabaseAPI';
@@ -27,12 +27,24 @@ export const AllSalesInvoicesScreen: React.FC<AllSalesInvoicesScreenProps> = ({ 
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const canEdit   = hasPermission(currentUser.role, 'EDIT_SALES_INVOICE');
     const canDelete = hasPermission(currentUser.role, 'DELETE_SALES_INVOICE');
+    const [startDate, setStartDate] = useState<string>('');
+    const [endDate, setEndDate] = useState<string>('');
 
     // Queries
     const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
         queryKey: ['sales_invoices', currentUser.company_id],
         queryFn: () => api.getSalesInvoices(currentUser),
     });
+
+    const filteredInvoices = useMemo(() => {
+        return invoices.filter(inv => {
+            if (!inv.created_at) return true;
+            const invDateStr = inv.created_at.substring(0, 10);
+            if (startDate && invDateStr < startDate) return false;
+            if (endDate && invDateStr > endDate) return false;
+            return true;
+        });
+    }, [invoices, startDate, endDate]);
 
     const { data: orders = [] } = useQuery({
         queryKey: ['orders', currentUser.id],
@@ -75,6 +87,41 @@ export const AllSalesInvoicesScreen: React.FC<AllSalesInvoicesScreenProps> = ({ 
                 onBack={() => navigate('/dashboard')} 
             />
 
+            {/* Date Filter Bar */}
+            <div className="bg-white border-b border-gray-100 px-4 py-2">
+                <div className="max-w-4xl mx-auto flex items-center gap-2">
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                        <div className="relative flex items-center bg-slate-50 border border-gray-100 rounded-xl px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-[#008069] transition-all">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase shrink-0 mr-1.5">From:</span>
+                            <input 
+                                type="date" 
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="w-full bg-transparent text-xs text-gray-700 focus:outline-none cursor-pointer"
+                            />
+                        </div>
+                        <div className="relative flex items-center bg-slate-50 border border-gray-100 rounded-xl px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-[#008069] transition-all">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase shrink-0 mr-1.5">To:</span>
+                            <input 
+                                type="date" 
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="w-full bg-transparent text-xs text-gray-700 focus:outline-none cursor-pointer"
+                            />
+                        </div>
+                    </div>
+                    {(startDate || endDate) && (
+                        <button 
+                            onClick={() => { setStartDate(''); setEndDate(''); }}
+                            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-gray-500 flex items-center justify-center shrink-0 active:scale-95 transition-all"
+                            title="Clear Filters"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    )}
+                </div>
+            </div>
+
             <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24">
                 <div className="max-w-4xl mx-auto space-y-3 w-full">
                     {isLoading ? (
@@ -83,8 +130,18 @@ export const AllSalesInvoicesScreen: React.FC<AllSalesInvoicesScreenProps> = ({ 
                         </div>
                     ) : invoices.length === 0 ? (
                         <EmptyState icon="🧾" title="No Sales Invoices" subtitle="You haven't issued any invoices yet." />
+                    ) : filteredInvoices.length === 0 ? (
+                        <div className="bg-white rounded-2xl p-8 text-center border border-gray-100 shadow-sm">
+                            <p className="text-gray-500 text-sm font-bold">No sales invoices match the selected date range.</p>
+                            <button 
+                                onClick={() => { setStartDate(''); setEndDate(''); }}
+                                className="mt-3 px-4 py-2 bg-[#008069] text-white text-xs font-bold rounded-xl"
+                            >
+                                Clear Date Filter
+                            </button>
+                        </div>
                     ) : (
-                        invoices.map(inv => {
+                        filteredInvoices.map(inv => {
                             const itemsStr = inv.items.slice(0, 3).map(i => `${i.quantity} ${i.unit} ${i.description}`).join(' • ');
                             const hasMoreItems = inv.items.length > 3;
 

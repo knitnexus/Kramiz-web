@@ -111,7 +111,7 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
     // --- Derived Data ---
     const partnerIds = new Set(partners.map(p => p.id));
 
-    const allPossibleBuyers = [
+    const fullBuyersList = [
         ...partners.map(p => ({ 
             id: p.id, 
             companyId: p.id, 
@@ -126,7 +126,9 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
             name: c.name, 
             tag: c.linked_company_id ? 'Partner' : 'Manual Contact'
         }))
-    ].filter(s => s.name.toLowerCase().includes(buyerSearch.toLowerCase()));
+    ];
+
+    const allPossibleBuyers = fullBuyersList.filter(s => s.name.toLowerCase().includes(buyerSearch.toLowerCase()));
 
     const subtotal = useMemo(() => {
         return items.reduce((sum, it) => {
@@ -170,7 +172,7 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
             });
 
             if (res.success && res.data) {
-                const { date, party_name, items: extractedItems, invoice_number } = res.data;
+                const { date, party_name, buyer_name, items: extractedItems, invoice_number } = res.data;
                 
                 if (date) setDocDate(date);
                 if (extractedItems?.length) {
@@ -184,11 +186,12 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
                 }
                 if (invoice_number) setInvNo(invoice_number);
                 
-                // Try to match buyer
-                if (party_name) {
-                    const match = allPossibleBuyers.find(s => 
-                        s.name.toLowerCase().includes(party_name.toLowerCase()) ||
-                        party_name.toLowerCase().includes(s.name.toLowerCase())
+                // Try to match buyer against the full unfiltered list
+                const targetBuyer = buyer_name || party_name;
+                if (targetBuyer) {
+                    const match = fullBuyersList.find(s => 
+                        s.name.toLowerCase().includes(targetBuyer.toLowerCase()) ||
+                        targetBuyer.toLowerCase().includes(s.name.toLowerCase())
                     );
                     if (match) setSelectedBuyer(match);
                 }

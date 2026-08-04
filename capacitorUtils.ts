@@ -21,6 +21,7 @@ import { Browser } from '@capacitor/browser';
 import { Share } from '@capacitor/share';
 import { Device } from '@capacitor/device';
 import { Network } from '@capacitor/network';
+import { Clipboard } from '@capacitor/clipboard';
 
 // ============================================
 // PLATFORM DETECTION
@@ -623,6 +624,67 @@ export const setupNetworkListener = (
 };
 
 // ============================================
+// CLIPBOARD
+// ============================================
+
+export const copyToClipboard = async (text: string): Promise<boolean> => {
+    if (isNative) {
+        try {
+            await Clipboard.write({ string: text });
+            return true;
+        } catch (error) {
+            console.error('[Capacitor] Clipboard write error:', error);
+        }
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (error) {
+            console.error('[Web] Clipboard write error:', error);
+        }
+    }
+
+    try {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return successful;
+    } catch (err) {
+        console.error('Fallback copy failed:', err);
+        return false;
+    }
+};
+
+export const readFromClipboard = async (): Promise<string> => {
+    if (isNative) {
+        try {
+            const { value } = await Clipboard.read();
+            return value || '';
+        } catch (error) {
+            console.error('[Capacitor] Clipboard read error:', error);
+        }
+    }
+
+    if (navigator.clipboard && navigator.clipboard.readText) {
+        try {
+            return await navigator.clipboard.readText();
+        } catch (error) {
+            console.error('[Web] Clipboard read error:', error);
+        }
+    }
+
+    return '';
+};
+
+// ============================================
+
 // INITIALIZATION
 // ============================================
 

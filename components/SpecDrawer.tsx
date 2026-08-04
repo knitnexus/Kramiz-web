@@ -91,7 +91,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser, on
 
 
     return (
-        <div className="bg-white border-b border-gray-200 shadow-sm z-20 relative">
+        <div className={`bg-white border-b border-gray-200 shadow-sm relative ${previewFile ? 'z-[2000]' : 'z-20'}`}>
             <div
                 id="tour-specs-drawer"
                 className="flex justify-between items-center px-4 py-3 cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors"
@@ -399,7 +399,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser, on
             {/* Premium Full-Screen File Preview */}
             {previewFile && (
                 <div
-                    className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300"
+                    className="fixed inset-0 z-[2100] bg-black/95 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300"
                     onClick={() => setPreviewFile(null)}
                 >
                     {/* Close Button */}
